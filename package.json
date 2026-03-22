@@ -1,0 +1,22 @@
+{
+  "name": "ghost-to-wp",
+  "version": "1.0.0",
+  "description": "Ghost(square.antiegg.kr) -> WordPress(antiegg.kr) 아티클 자동 이전 도구",
+  "type": "module",
+  "scripts": {
+    "sync": "tsx src/index.ts",
+    "sync:dry": "tsx src/index.ts --dry-run",
+    "sync:all": "tsx src/index.ts --all",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
