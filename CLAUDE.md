@@ -23,14 +23,9 @@ npm run sync            # 실제 동기화
 
 ## 인프라
 
-| 서비스 | URL | 서버 | SSH |
-|--------|-----|------|-----|
-| Ghost (Square) | https://square.antiegg.kr | 158.247.234.227 | `ssh ghost` (port 2222) |
-| WordPress (본사이트) | https://antiegg.kr | 158.247.236.239 | `ssh wp` (port 2222) |
-
-- Ghost: /var/www/ghost/, MySQL (ghost_prod), systemd
-- WP: CyberPanel + OpenLiteSpeed, PHP 8.2, wp-cli 설치됨
-- SSH 키: `~/.ssh/antiegg_ed25519` (양쪽 동일)
+- Ghost (Square): https://square.antiegg.kr
+- WordPress (본사이트): https://antiegg.kr
+- 서버 접근 정보는 `.env`와 별도 관리 (이 파일에 포함하지 않음)
 
 ## 파일 구조
 
