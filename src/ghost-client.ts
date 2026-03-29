@@ -54,7 +54,7 @@ export const fetchAllPosts = async (): Promise<GhostPost[]> => {
     const data = await ghostFetch<{
       posts: GhostPost[]
       meta: { pagination: { pages: number } }
-    }>(`posts/?include=tags,authors&limit=${limit}&page=${page}&filter=status:published`)
+    }>(`posts/?include=tags,authors&formats=html&limit=${limit}&page=${page}&filter=status:published`)
 
     allPosts.push(...data.posts)
 
@@ -69,7 +69,7 @@ export const fetchAllPosts = async (): Promise<GhostPost[]> => {
 export const fetchPostBySlug = async (slug: string): Promise<GhostPost | null> => {
   try {
     const data = await ghostFetch<{ posts: GhostPost[] }>(
-      `posts/slug/${slug}/?include=tags,authors`
+      `posts/slug/${slug}/?include=tags,authors&formats=html`
     )
     return data.posts[0] ?? null
   } catch {

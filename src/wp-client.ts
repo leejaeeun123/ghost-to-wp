@@ -121,10 +121,17 @@ export const findOrCreateWpTag = async (name: string): Promise<number> => {
   )
   if (match) return match.id
 
-  const created = await wpFetch<{ id: number }>("tags", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  })
-  return created.id
+  try {
+    const created = await wpFetch<{ id: number }>("tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    })
+    return created.id
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    const termIdMatch = msg.match(/"term_id":(\d+)/)
+    if (termIdMatch) return Number(termIdMatch[1])
+    throw err
+  }
 }

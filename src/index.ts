@@ -36,6 +36,14 @@ const syncPost = async (
     }
   }
 
+  if (!post.html) {
+    return {
+      ...base,
+      status: "failed",
+      reason: "Ghost 포스트에 HTML 본문이 없음",
+    }
+  }
+
   const existing = await findWpPostBySlug(post.slug)
   if (existing) {
     return {
