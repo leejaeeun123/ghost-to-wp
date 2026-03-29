@@ -12,6 +12,7 @@
 /** 재사용 블록 ID (ANTIEGG WP DB 기준) */
 const BLOCK = {
   DIVIDER: 5701,
+  SPACE_70: 27530,
   SPACE_40: 19650,
   SPACE_20: 19912,
   SPACE_10: 19767,
@@ -28,8 +29,11 @@ const wpParagraph = (inner: string, attrs?: string): string => {
   return `<!-- wp:paragraph${attrStr} -->\n${inner}\n<!-- /wp:paragraph -->`
 }
 
-const wpHeading = (text: string): string =>
+const wpHeadingH2 = (text: string): string =>
   `<!-- wp:heading {"textAlign":"center"} -->\n<h2 class="wp-block-heading has-text-align-center">${text}</h2>\n<!-- /wp:heading -->`
+
+const wpHeadingH3 = (text: string): string =>
+  `<!-- wp:heading {"level":3} -->\n<h3 class="wp-block-heading">${text}</h3>\n<!-- /wp:heading -->`
 
 const wpImage = (src: string, width: number, caption?: string): string => {
   const captionHtml = caption
@@ -92,14 +96,19 @@ export const transformGhostToWp = (ghostHtml: string): string => {
 
     switch (el.type) {
       case "heading": {
-        if (!isFirstSection) {
+        if (el.level <= 2) {
+          if (!isFirstSection) {
+            blocks.push(ref(BLOCK.SPACE_40))
+            blocks.push(ref(BLOCK.DIVIDER))
+          }
+          blocks.push(spacer100())
+          blocks.push(wpHeadingH2(el.text))
           blocks.push(ref(BLOCK.SPACE_40))
-          blocks.push(ref(BLOCK.DIVIDER))
+          isFirstSection = false
+        } else {
+          blocks.push(ref(BLOCK.SPACE_40))
+          blocks.push(wpHeadingH3(el.text))
         }
-        blocks.push(spacer100())
-        blocks.push(wpHeading(el.text))
-        blocks.push(ref(BLOCK.SPACE_40))
-        isFirstSection = false
         break
       }
 
@@ -139,6 +148,13 @@ export const transformGhostToWp = (ghostHtml: string): string => {
         break
       }
 
+      case "embed": {
+        blocks.push(ref(BLOCK.SPACE_40))
+        blocks.push(`<!-- wp:html -->\n<div style="text-align:center">${el.html}</div>\n<!-- /wp:html -->`)
+        blocks.push(ref(BLOCK.SPACE_40))
+        break
+      }
+
       case "html": {
         blocks.push(`<!-- wp:html -->\n${el.html}\n<!-- /wp:html -->`)
         break
@@ -154,13 +170,14 @@ export const transformGhostToWp = (ghostHtml: string): string => {
 
 /** 파싱된 Ghost HTML 요소 */
 type ParsedElement =
-  | { type: "heading"; text: string }
+  | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; html: string }
   | { type: "image"; src: string; width: number; caption?: string }
   | { type: "quote"; text: string; source?: string }
   | { type: "hr" }
   | { type: "bookmark"; href: string; text: string }
   | { type: "list"; items: string[] }
+  | { type: "embed"; html: string }
   | { type: "html"; html: string }
 
 /**
@@ -214,14 +231,21 @@ class GhostHtmlParser {
   }
 
   private parseHeading(html: string): ParsedElement {
+    const levelMatch = html.match(/^<h(\d)/i)
+    const level = levelMatch ? parseInt(levelMatch[1]) : 2
     const text = html.replace(/<\/?h[1-6][^>]*>/gi, "").trim()
-    return { type: "heading", text }
+    return { type: "heading", level, text }
   }
 
   private parseFigure(html: string): ParsedElement {
     const srcMatch = html.match(/src="([^"]+)"/)
     const captionMatch = html.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i)
     const src = srcMatch?.[1] ?? ""
+
+    const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"[^>]*>/i)
+    if (iframeMatch) {
+      return { type: "embed", html }
+    }
 
     if (!src || !src.match(/\.(jpg|jpeg|png|gif|webp|svg)/i)) {
       return { type: "html", html }

@@ -70,6 +70,7 @@ export interface CategoryMapping {
   ghostTag: string
   wpCategoryId: number
   wpCategoryName: string
+  parentId?: number
 }
 
 /** 작성자 매핑 */
