@@ -80,10 +80,13 @@ const syncPost = async (
     wpTagIds.push(tagId)
   }
 
+  const cleanTitle = post.title.replace(/&lt;/g, "'").replace(/&gt;/g, "'").replace(/</g, "'").replace(/>/g, "'")
+  const cleanExcerpt = (post.custom_excerpt ?? "").replace(/&lt;/g, "'").replace(/&gt;/g, "'").replace(/</g, "'").replace(/>/g, "'")
+
   const wpPost = await createWpPost({
-    title: post.title,
+    title: cleanTitle,
     content: finalHtml,
-    excerpt: post.custom_excerpt ?? "",
+    excerpt: cleanExcerpt,
     status: options.status,
     date: post.published_at,
     categories,

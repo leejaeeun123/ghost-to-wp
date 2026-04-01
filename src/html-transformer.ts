@@ -16,13 +16,14 @@ const BLOCK = {
   SPACE_40: 19650,
   SPACE_20: 19912,
   SPACE_10: 19767,
+  EDITOR_TAIL: 19773,
 } as const
 
 const ref = (id: number): string =>
   `<!-- wp:block {"ref":${id}} /-->`
 
 const spacer100 = (): string =>
-  `<!-- wp:spacer {"height":"100px"} -->\n<div style="height:100px" aria-hidden="true" class="wp-block-spacer"></div>\n<!-- /wp:spacer -->`
+  `<!-- wp:spacer -->\n<div style="height:100px" aria-hidden="true" class="wp-block-spacer"></div>\n<!-- /wp:spacer -->`
 
 const wpParagraph = (inner: string, attrs?: string): string => {
   const attrStr = attrs ? ` ${attrs}` : ""
@@ -81,6 +82,19 @@ const wpInflowLink = (href: string, text: string): string => [
   ref(BLOCK.DIVIDER),
 ].join("\n")
 
+const wpYouTubeEmbed = (url: string, caption?: string): string => {
+  const captionHtml = caption
+    ? `<figcaption class="wp-element-caption"><sup>${caption}</sup></figcaption>`
+    : ""
+  return [
+    `<!-- wp:embed {"url":"${url}","type":"video","providerNameSlug":"youtube","responsive":true,"align":"center","className":"wp-embed-aspect-16-9 wp-has-aspect-ratio"} -->`,
+    `<figure class="wp-block-embed aligncenter is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-16-9 wp-has-aspect-ratio"><div class="wp-block-embed__wrapper">`,
+    url,
+    `</div>${captionHtml}</figure>`,
+    `<!-- /wp:embed -->`,
+  ].join("\n")
+}
+
 /**
  * Ghost HTML 문자열을 WP Block Editor HTML로 변환
  */
@@ -90,6 +104,7 @@ export const transformGhostToWp = (ghostHtml: string): string => {
   const elements = parser.parse()
 
   let isFirstSection = true
+  let lastWasInflowLink = false
 
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i]
@@ -97,7 +112,7 @@ export const transformGhostToWp = (ghostHtml: string): string => {
     switch (el.type) {
       case "heading": {
         if (el.level <= 2) {
-          if (!isFirstSection) {
+          if (!isFirstSection && !lastWasInflowLink) {
             blocks.push(ref(BLOCK.SPACE_40))
             blocks.push(ref(BLOCK.DIVIDER))
           }
@@ -109,11 +124,13 @@ export const transformGhostToWp = (ghostHtml: string): string => {
           blocks.push(ref(BLOCK.SPACE_40))
           blocks.push(wpHeadingH3(el.text))
         }
+        lastWasInflowLink = false
         break
       }
 
       case "paragraph": {
         blocks.push(wpParagraph(`<p>${el.html}</p>`))
+        lastWasInflowLink = false
         break
       }
 
@@ -121,6 +138,7 @@ export const transformGhostToWp = (ghostHtml: string): string => {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpImage(el.src, el.width, el.caption))
         blocks.push(ref(BLOCK.SPACE_40))
+        lastWasInflowLink = false
         break
       }
 
@@ -128,23 +146,53 @@ export const transformGhostToWp = (ghostHtml: string): string => {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpQuote(el.text, el.source))
         blocks.push(ref(BLOCK.SPACE_40))
+        lastWasInflowLink = false
         break
       }
 
       case "hr": {
+        if (lastWasInflowLink) {
+          // 유입링크가 이미 구분선으로 끝나므로 hr 스킵
+          break
+        }
+
+        const hasMoreHeadings = elements
+          .slice(i + 1)
+          .some((e) => e.type === "heading" && e.level <= 2)
+
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(ref(BLOCK.DIVIDER))
+
+        if (!hasMoreHeadings) {
+          blocks.push(spacer100())
+        }
         break
       }
 
       case "bookmark": {
         blocks.push(wpInflowLink(el.href, el.text))
+        lastWasInflowLink = true
+        break
+      }
+
+      case "button": {
+        blocks.push(wpInflowLink(el.href, el.text))
+        lastWasInflowLink = true
         break
       }
 
       case "list": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpList(el.items))
+        lastWasInflowLink = false
+        break
+      }
+
+      case "youtube": {
+        blocks.push(ref(BLOCK.SPACE_40))
+        blocks.push(wpYouTubeEmbed(el.url, el.caption))
+        blocks.push(ref(BLOCK.SPACE_40))
+        lastWasInflowLink = false
         break
       }
 
@@ -152,18 +200,27 @@ export const transformGhostToWp = (ghostHtml: string): string => {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(`<!-- wp:html -->\n<div style="text-align:center">${el.html}</div>\n<!-- /wp:html -->`)
         blocks.push(ref(BLOCK.SPACE_40))
+        lastWasInflowLink = false
         break
       }
 
       case "html": {
         blocks.push(`<!-- wp:html -->\n${el.html}\n<!-- /wp:html -->`)
+        lastWasInflowLink = false
         break
       }
     }
   }
 
-  blocks.push("")
-  blocks.push("<!-- EDITOR CARD TEMPLATE 자리 (수동 삽입) -->")
+  // 아티클 종결 시퀀스 (고정)
+  if (!lastWasInflowLink) {
+    blocks.push(ref(BLOCK.SPACE_40))
+    blocks.push(ref(BLOCK.DIVIDER))
+  }
+  blocks.push(ref(BLOCK.SPACE_20))
+  blocks.push(`<!-- wp:shortcode -->\n<!-- /wp:shortcode -->`)
+  blocks.push(ref(BLOCK.SPACE_20))
+  blocks.push(ref(BLOCK.EDITOR_TAIL))
 
   return blocks.join("\n\n")
 }
@@ -176,7 +233,9 @@ type ParsedElement =
   | { type: "quote"; text: string; source?: string }
   | { type: "hr" }
   | { type: "bookmark"; href: string; text: string }
+  | { type: "button"; href: string; text: string }
   | { type: "list"; items: string[] }
+  | { type: "youtube"; url: string; caption?: string }
   | { type: "embed"; html: string }
   | { type: "html"; html: string }
 
@@ -221,6 +280,7 @@ class GhostHtmlParser {
     if (/^<hr\s*\/?>/i.test(html)) return { type: "hr" }
     if (/^<[uo]l\b/i.test(html)) return this.parseList(html)
     if (/^<div class="kg-bookmark/i.test(html)) return this.parseBookmark(html)
+    if (/^<div class="kg-card kg-button-card/i.test(html)) return this.parseButton(html)
     if (/^<div class="kg-/i.test(html)) return { type: "html", html }
     if (/^<p\b/i.test(html)) return this.parseParagraph(html)
 
@@ -233,7 +293,12 @@ class GhostHtmlParser {
   private parseHeading(html: string): ParsedElement {
     const levelMatch = html.match(/^<h(\d)/i)
     const level = levelMatch ? parseInt(levelMatch[1]) : 2
-    const text = html.replace(/<\/?h[1-6][^>]*>/gi, "").trim()
+    const text = html
+      .replace(/<\/?h[1-6][^>]*>/gi, "")
+      .replace(/<\/?strong>/gi, "")
+      .replace(/&lt;/g, "\u3008")
+      .replace(/&gt;/g, "\u3009")
+      .trim()
     return { type: "heading", level, text }
   }
 
@@ -244,6 +309,15 @@ class GhostHtmlParser {
 
     const iframeMatch = html.match(/<iframe[^>]+src="([^"]+)"[^>]*>/i)
     if (iframeMatch) {
+      const iframeSrc = iframeMatch[1]
+      const ytMatch = iframeSrc.match(/youtube\.com\/embed\/([^?"&]+)/)
+      if (ytMatch) {
+        const url = `https://www.youtube.com/watch?v=${ytMatch[1]}`
+        const caption = captionMatch
+          ? captionMatch[1].replace(/<[^>]+>/g, "").replace(/&lt;/g, "'").replace(/&gt;/g, "'").trim()
+          : undefined
+        return { type: "youtube", url, caption }
+      }
       return { type: "embed", html }
     }
 
@@ -262,7 +336,7 @@ class GhostHtmlParser {
     }
 
     const caption = captionMatch
-      ? captionMatch[1].replace(/<[^>]+>/g, "").trim()
+      ? captionMatch[1].replace(/<[^>]+>/g, "").replace(/&lt;/g, "'").replace(/&gt;/g, "'").trim()
       : undefined
 
     return { type: "image", src, width: displayWidth, caption }
@@ -297,6 +371,14 @@ class GhostHtmlParser {
     }
 
     return { type: "list", items }
+  }
+
+  private parseButton(html: string): ParsedElement {
+    const hrefMatch = html.match(/href="([^"]+)"/)
+    const textMatch = html.match(/class="kg-btn[^"]*">([^<]+)</)
+    const href = hrefMatch?.[1] ?? ""
+    const text = textMatch?.[1]?.trim() ?? href
+    return { type: "button", href, text }
   }
 
   private parseBookmark(html: string): ParsedElement {

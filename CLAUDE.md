@@ -56,6 +56,7 @@ Ghost HTML은 일반 HTML이지만, ANTIEGG WordPress는 Gutenberg Block Editor 
 | 40px 스페이서 | `19650` | 기본 여백 |
 | 20px 스페이서 | `19912` | 유입링크 내 여백 |
 | 10px 스페이서 | `19767` | 유입링크 내 여백 |
+| 에디터 카드 꼬리 | `19773` | 아티클 종결 시퀀스 맨 끝 |
 
 사용법: `<!-- wp:block {"ref":19650} /-->` (WP가 해당 ID의 재사용 블록을 렌더링)
 
@@ -63,14 +64,17 @@ Ghost HTML은 일반 HTML이지만, ANTIEGG WordPress는 Gutenberg Block Editor 
 
 | Ghost 요소 | WP 변환 | 주의사항 |
 |-----------|---------|---------|
-| `<h2>` | `<!-- wp:heading -->` + 가운데 정렬 | 앞에 반드시 구분선+100px 스페이서 |
+| `<h2>` | `<!-- wp:heading -->` + 가운데 정렬 | 앞에 반드시 구분선+100px 스페이서, 볼드(strong) 제거 |
 | `<p>` | `<!-- wp:paragraph -->` | 본문 내 링크에 `target="_blank"` 필수 |
 | `<figure><img>` | `<!-- wp:image -->` + 가운데 정렬 | 가로형 700px, 세로형 467px, 앞뒤 40px 스페이서 |
 | `<figcaption>` | `<sup>` 태그로 감싸기 | |
+| YouTube iframe | `<!-- wp:embed -->` 블록 | providerNameSlug: youtube, 16:9 |
+| Ghost 버튼 카드 | 유입링크 고정 시퀀스 | kg-button-card → 텍스트 링크로 변환 |
 | `<blockquote>` | `<!-- wp:quote -->` | 색상 #9d9d9d, 이탤릭, 큰따옴표 |
 | `<hr>` | 40px 스페이서 + 구분선(5701) | |
 | Ghost bookmark | 유입링크 고정 시퀀스 | spacer→구분선→spacer→링크→spacer→구분선 |
 | `<ul>/<ol>` | `<!-- wp:list -->` | 참고문헌 스타일: 14px, #9d9d9d |
+| 결문 (제목 없는 마지막 섹션) | 구분선 + 100px 스페이서 + 본문 | hr 이후 h2가 없으면 자동 적용 |
 
 ### 유입링크 고정 시퀀스 (순서 변경 금지)
 
@@ -82,6 +86,22 @@ Ghost HTML은 일반 HTML이지만, ANTIEGG WordPress는 Gutenberg Block Editor 
 <!-- wp:block {"ref":19767} /-->   ← 10px
 <!-- wp:block {"ref":5701} /-->    ← 구분선
 ```
+
+### 아티클 종결 시퀀스 (순서 변경 금지)
+
+```
+<!-- wp:block {"ref":19650} /-->   ← 40px
+<!-- wp:block {"ref":5701} /-->    ← 구분선
+<!-- wp:block {"ref":19912} /-->   ← 20px
+<!-- wp:shortcode -->              ← 에디터 카드 (shortcode)
+<!-- /wp:shortcode -->
+<!-- wp:block {"ref":19912} /-->   ← 20px
+<!-- wp:block {"ref":19773} /-->   ← 에디터 카드 꼬리
+```
+
+### 100px 스페이서 형식
+
+WP 기본값이 100px이므로 빈 태그 사용: `<!-- wp:spacer --><!-- /wp:spacer -->`
 
 ## 카테고리 매핑 (category-mapper.ts)
 
