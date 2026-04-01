@@ -1,0 +1,45 @@
+import { Router } from "express"
+import { fetchPostBySlug } from "../ghost-client.js"
+import { transformGhostToWp } from "../html-transformer.js"
+
+export const previewRoutes = Router()
+
+previewRoutes.post("/transform", async (req, res) => {
+  try {
+    const { slug } = req.body
+    if (!slug) {
+      res.status(400).json({ error: "slug 필수" })
+      return
+    }
+
+    const post = await fetchPostBySlug(slug)
+    if (!post) {
+      res.status(404).json({ error: "포스트를 찾을 수 없습니다" })
+      return
+    }
+
+    if (!post.html) {
+      res.status(400).json({ error: "포스트에 HTML 본문이 없습니다" })
+      return
+    }
+
+    const wpHtml = transformGhostToWp(post.html)
+
+    const imagePattern = /src="(https?:\/\/[^"]+\.(jpg|jpeg|png|gif|webp|svg)[^"]*)"/gi
+    const images: string[] = []
+    let match: RegExpExecArray | null
+    while ((match = imagePattern.exec(post.html)) !== null) {
+      images.push(match[1])
+    }
+
+    res.json({
+      title: post.title,
+      ghostHtml: post.html,
+      wpHtml,
+      images,
+      featureImage: post.feature_image,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+  }
+})

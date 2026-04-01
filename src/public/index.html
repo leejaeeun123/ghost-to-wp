@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ghost → WP Admin</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Ghost → WP Admin</h1>
+    <nav>
+      <button class="tab active" data-tab="articles">Articles</button>
+      <button class="tab" data-tab="preview">Preview</button>
+      <button class="tab" data-tab="sync">Sync</button>
+      <button class="tab" data-tab="schedule">Schedule</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-articles" class="tab-content active">
+      <div class="filters">
+        <label>After <input type="date" id="filter-after"></label>
+        <label>Before <input type="date" id="filter-before"></label>
+        <label>Author
+          <select id="filter-author"><option value="">All</option></select>
+        </label>
+        <button id="btn-filter">Filter</button>
+        <button id="btn-refresh">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table id="article-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all"></th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Date</th>
+              <th>Tags</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="article-count" class="info"></div>
+    </section>
+
+    <section id="tab-preview" class="tab-content">
+      <div class="preview-header">
+        <span id="preview-title">Select an article to preview</span>
+        <button id="btn-preview" disabled>Preview</button>
+      </div>
+      <div class="preview-panels">
+        <div class="panel">
+          <h3>Ghost HTML</h3>
+          <pre id="ghost-html"></pre>
+        </div>
+        <div class="panel">
+          <h3>WP Block HTML</h3>
+          <pre id="wp-html"></pre>
+        </div>
+      </div>
+      <div id="preview-images" class="info"></div>
+    </section>
+
+    <section id="tab-sync" class="tab-content">
+      <div class="sync-controls">
+        <span id="sync-selection">No articles selected</span>
+        <button id="btn-sync-draft">Sync as Draft</button>
+        <button id="btn-sync-publish">Sync as Publish</button>
+      </div>
+      <div id="sync-progress" class="info"></div>
+      <table id="sync-results">
+        <thead>
+          <tr><th>Title</th><th>Status</th><th>WP ID</th><th>Detail</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="tab-schedule" class="tab-content">
+      <div class="schedule-controls">
+        <span id="schedule-selection">No articles selected</span>
+        <label>Publish Date <input type="datetime-local" id="schedule-date"></label>
+        <button id="btn-schedule" disabled>Schedule</button>
+      </div>
+      <div id="schedule-result" class="info"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/article-list.js"></script>
+  <script src="/js/preview.js"></script>
+  <script src="/js/sync.js"></script>
+  <script src="/js/schedule.js"></script>
+</body>
+</html>

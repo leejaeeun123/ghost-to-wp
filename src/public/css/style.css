@@ -1,0 +1,146 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+}
+
+header {
+  background: #1a1a2e;
+  color: #fff;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+header h1 { font-size: 18px; white-space: nowrap; }
+
+nav { display: flex; gap: 4px; }
+
+.tab {
+  background: transparent;
+  color: #aaa;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.tab:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.tab.active { color: #fff; background: rgba(255,255,255,0.2); font-weight: 600; }
+
+main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Filters */
+.filters {
+  display: flex; gap: 12px; align-items: center;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+
+.filters label { font-size: 13px; color: #666; display: flex; align-items: center; gap: 6px; }
+.filters input, .filters select {
+  padding: 6px 10px; border: 1px solid #ddd;
+  border-radius: 4px; font-size: 13px;
+}
+
+.filters button, .sync-controls button, .schedule-controls button, #btn-preview {
+  padding: 8px 16px;
+  background: #1a1a2e;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: opacity 0.2s;
+}
+
+.filters button:hover, .sync-controls button:hover, .schedule-controls button:hover, #btn-preview:hover {
+  opacity: 0.85;
+}
+
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.danger { background: #c0392b; }
+button.success { background: #27ae60; }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+
+table {
+  width: 100%; border-collapse: collapse;
+  background: #fff; border-radius: 8px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+th { background: #f8f8f8; font-size: 12px; text-transform: uppercase; color: #888; text-align: left; }
+th, td { padding: 10px 14px; border-bottom: 1px solid #eee; font-size: 13px; }
+td:first-child, th:first-child { width: 40px; text-align: center; }
+
+tr.selected { background: #eef3ff; }
+tr:hover { background: #fafafa; }
+tr.selected:hover { background: #e0eaff; }
+
+.tag { display: inline-block; background: #eee; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin: 1px 2px; }
+
+/* Preview */
+.preview-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+}
+
+.preview-header span { font-weight: 600; font-size: 15px; }
+
+.preview-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.panel {
+  background: #fff; border-radius: 8px; padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;
+}
+
+.panel h3 { font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; }
+
+.panel pre {
+  background: #1a1a2e; color: #e0e0e0; padding: 16px;
+  border-radius: 6px; overflow: auto; max-height: 600px;
+  font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all;
+}
+
+/* Sync */
+.sync-controls, .schedule-controls {
+  display: flex; gap: 12px; align-items: center;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+
+.sync-controls span, .schedule-controls span { font-size: 14px; font-weight: 600; flex: 1; }
+
+.status-created { color: #27ae60; font-weight: 600; }
+.status-skipped_duplicate { color: #f39c12; }
+.status-skipped_no_author { color: #e67e22; }
+.status-failed { color: #c0392b; font-weight: 600; }
+
+/* Schedule */
+.schedule-controls input[type="datetime-local"] {
+  padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;
+}
+
+/* Info / Toast */
+.info { font-size: 13px; color: #666; margin-top: 12px; }
+
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 12px 20px; border-radius: 6px;
+  color: #fff; font-size: 13px;
+  transition: opacity 0.3s;
+  z-index: 999;
+}
+
+.toast.hidden { opacity: 0; pointer-events: none; }
+.toast.success { background: #27ae60; }
+.toast.error { background: #c0392b; }
+.toast.info { background: #2980b9; }
