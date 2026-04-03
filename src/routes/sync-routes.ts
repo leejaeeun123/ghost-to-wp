@@ -1,6 +1,6 @@
 import { Router } from "express"
 import { fetchPostBySlug } from "../ghost-client.js"
-import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag } from "../wp-client.js"
+import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoastMetaDesc } from "../wp-client.js"
 import { transformGhostToWp } from "../html-transformer.js"
 import { replaceImageUrls, uploadFeatureImage } from "../image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
@@ -63,7 +63,7 @@ const syncOnePost = async (
   }
 
   const excerpt = post.custom_excerpt
-    ? `${splitToTwoLines(cleanText(post.custom_excerpt))} |`
+    ? splitToTwoLines(cleanText(post.custom_excerpt))
     : ""
 
   const wpPost = await createWpPost({
@@ -78,6 +78,11 @@ const syncOnePost = async (
     featured_media: featuredMediaId,
     author: wpAuthorId,
   })
+
+  if (post.custom_excerpt) {
+    const metaDesc = `${cleanText(post.custom_excerpt)} |`
+    await setYoastMetaDesc(wpPost.id, metaDesc)
+  }
 
   return { ...base, status: "created", wpPostId: wpPost.id }
 }

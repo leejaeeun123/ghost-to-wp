@@ -113,6 +113,48 @@ export const uploadWpMedia = async (
   return res.json() as Promise<WpMediaUpload>
 }
 
+/** Yoast SEO 메타 설명 설정 (XML-RPC 경유) */
+export const setYoastMetaDesc = async (
+  wpPostId: number,
+  metaDesc: string
+): Promise<void> => {
+  const apiUrl = process.env.WP_API_URL
+  const username = process.env.WP_USERNAME
+  const appPassword = process.env.WP_APP_PASSWORD
+  if (!apiUrl || !username || !appPassword) return
+
+  const escapeXml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+
+  const body = `<?xml version="1.0"?>
+<methodCall>
+  <methodName>wp.editPost</methodName>
+  <params>
+    <param><value><int>1</int></value></param>
+    <param><value><string>${escapeXml(username)}</string></value></param>
+    <param><value><string>${escapeXml(appPassword)}</string></value></param>
+    <param><value><int>${wpPostId}</int></value></param>
+    <param><value><struct>
+      <member>
+        <name>custom_fields</name>
+        <value><array><data>
+          <value><struct>
+            <member><name>key</name><value><string>_yoast_wpseo_metadesc</string></value></member>
+            <member><name>value</name><value><string>${escapeXml(metaDesc)}</string></value></member>
+          </struct></value>
+        </data></array></value>
+      </member>
+    </struct></value></param>
+  </params>
+</methodCall>`
+
+  await fetch(`${apiUrl}/xmlrpc.php`, {
+    method: "POST",
+    headers: { "Content-Type": "text/xml" },
+    body,
+  })
+}
+
 /** WP 태그 생성 (없으면 생성, 있으면 기존 반환) */
 export const findOrCreateWpTag = async (name: string): Promise<number> => {
   const existing = await wpFetch<{ id: number }[]>(
