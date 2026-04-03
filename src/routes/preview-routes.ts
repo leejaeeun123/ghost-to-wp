@@ -1,5 +1,7 @@
 import { Router } from "express"
 import { fetchPostBySlug } from "../ghost-client.js"
+import { fetchWpUsers } from "../wp-client.js"
+import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
 import { transformGhostToWp } from "../html-transformer.js"
 
 export const previewRoutes = Router()
@@ -23,7 +25,12 @@ previewRoutes.post("/transform", async (req, res) => {
       return
     }
 
-    const wpHtml = transformGhostToWp(post.html)
+    const wpUsers = await fetchWpUsers()
+    const unique = [...new Map(post.authors.map((a) => [a.slug, a])).values()]
+    const mappings = buildAuthorMappings(unique, wpUsers)
+    const wpAuthorId = resolveAuthor(post.authors, mappings)
+
+    const wpHtml = transformGhostToWp(post.html, wpAuthorId ?? undefined)
 
     const imagePattern = /src="(https?:\/\/[^"]+\.(jpg|jpeg|png|gif|webp|svg)[^"]*)"/gi
     const images: string[] = []

@@ -10,7 +10,21 @@ import type { GhostPost, SyncResult } from "../types.js"
 export const syncRoutes = Router()
 
 const cleanText = (text: string): string =>
-  text.replace(/&lt;/g, "'").replace(/&gt;/g, "'").replace(/</g, "'").replace(/>/g, "'")
+  text.replace(/&lt;/g, "\u2018").replace(/&gt;/g, "\u2019").replace(/<br\s*\/?>/gi, "<<BR>>").replace(/</g, "\u2018").replace(/>/g, "\u2019").replace(/<<BR>>/g, "<br>")
+
+/** 텍스트를 중간 공백 기준으로 두 줄로 분리 (<br> 삽입) */
+const splitToTwoLines = (text: string): string => {
+  if (!text || text.includes("<br")) return text
+  const trimmed = text.trim()
+  const spaces: number[] = []
+  for (let i = 0; i < trimmed.length; i++) {
+    if (trimmed[i] === " ") spaces.push(i)
+  }
+  if (spaces.length === 0) return trimmed
+  const mid = trimmed.length / 2
+  const best = spaces.reduce((a, b) => Math.abs(a - mid) < Math.abs(b - mid) ? a : b)
+  return trimmed.substring(0, best) + " <br>" + trimmed.substring(best + 1)
+}
 
 const syncOnePost = async (
   post: GhostPost,
@@ -37,7 +51,7 @@ const syncOnePost = async (
     return { ...base, status: "skipped_duplicate", reason: `WP ID: ${existing.id}` }
   }
 
-  const wpHtml = transformGhostToWp(post.html)
+  const wpHtml = transformGhostToWp(post.html, wpAuthorId ?? undefined)
   const { html: finalHtml } = await replaceImageUrls(wpHtml, false)
   const featuredMediaId = await uploadFeatureImage(post.feature_image, false)
   const categories = mapCategories(post.tags)
@@ -48,10 +62,15 @@ const syncOnePost = async (
     wpTagIds.push(await findOrCreateWpTag(name))
   }
 
+  const excerpt = post.custom_excerpt
+    ? `${splitToTwoLines(cleanText(post.custom_excerpt))} |`
+    : ""
+
   const wpPost = await createWpPost({
-    title: cleanText(post.title),
+    title: splitToTwoLines(cleanText(post.title)),
+    slug: post.slug,
     content: finalHtml,
-    excerpt: cleanText(post.custom_excerpt ?? ""),
+    excerpt,
     status,
     date: status === "future" && scheduleDate ? scheduleDate : post.published_at,
     categories,

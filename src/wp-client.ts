@@ -59,6 +59,7 @@ export const findWpPostBySlug = async (slug: string): Promise<WpPost | null> => 
 /** WP 포스트 생성 */
 export const createWpPost = async (params: {
   title: string
+  slug?: string
   content: string
   excerpt?: string
   status?: "draft" | "publish" | "future"
@@ -73,6 +74,7 @@ export const createWpPost = async (params: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       title: params.title,
+      slug: params.slug,
       content: params.content,
       excerpt: params.excerpt ?? "",
       status: params.status ?? "draft",

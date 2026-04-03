@@ -1,13 +1,16 @@
 /**
  * Ghost HTML → WordPress Block Editor HTML 변환
  *
- * ANTIEGG 워드프레스 블록 규칙 기반:
+ * ANTIEGG 워드프레��� 블록 규칙 기반:
  * - 재사용 블록 ID: DIVIDER=5701, SPACE_40=19650, SPACE_20=19912, SPACE_10=19767
  * - Gutenberg 블록 코멘트 (<!-- wp:... -->) 필수
- * - 이미지: 가로형 700px, 세로형 467px
+ * - ���미지: 가로형 700px, 세로형 467px
  * - 제목(h2): 가운데 정렬, 앞에 구분선+스페이서
  * - 유입링크: 고정 시퀀스 (spacer→구분선→spacer→링크→spacer→구분선)
+ * - 구분선/스페이서: 연속 반복 금지, 하나의 블록만 사용
  */
+
+import { getEditorTemplateId } from "./editor-card.js"
 
 /** 재사용 블록 ID (ANTIEGG WP DB 기준) */
 const BLOCK = {
@@ -97,8 +100,11 @@ const wpYouTubeEmbed = (url: string, caption?: string): string => {
 
 /**
  * Ghost HTML 문자열을 WP Block Editor HTML로 변환
+ *
+ * @param ghostHtml - Ghost CMS HTML 원문
+ * @param wpAuthorId - WP 사용자 ID (에디터 카드 숏코드 주입용)
  */
-export const transformGhostToWp = (ghostHtml: string): string => {
+export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): string => {
   const blocks: string[] = []
   const parser = new GhostHtmlParser(ghostHtml)
   const elements = parser.parse()
@@ -152,7 +158,6 @@ export const transformGhostToWp = (ghostHtml: string): string => {
 
       case "hr": {
         if (lastWasInflowLink) {
-          // 유입링크가 이미 구분선으로 끝나므로 hr 스킵
           break
         }
 
@@ -212,17 +217,54 @@ export const transformGhostToWp = (ghostHtml: string): string => {
     }
   }
 
-  // 아티클 종결 시퀀스 (고정)
+  // 아티클 종결 시퀀스
   if (!lastWasInflowLink) {
     blocks.push(ref(BLOCK.SPACE_40))
     blocks.push(ref(BLOCK.DIVIDER))
   }
   blocks.push(ref(BLOCK.SPACE_20))
-  blocks.push(`<!-- wp:shortcode -->\n<!-- /wp:shortcode -->`)
+
+  const templateId = wpAuthorId ? getEditorTemplateId(wpAuthorId) : null
+  const shortcodeContent = templateId
+    ? `[elementor-template id="${templateId}"]`
+    : ""
+  blocks.push(`<!-- wp:shortcode -->\n${shortcodeContent}\n<!-- /wp:shortcode -->`)
+
   blocks.push(ref(BLOCK.SPACE_20))
   blocks.push(ref(BLOCK.EDITOR_TAIL))
 
-  return blocks.join("\n\n")
+  return deduplicateBlocks(blocks).join("\n\n")
+}
+
+/**
+ * 블록 배열에서 연속 중복 제거
+ *
+ * 1. 동일한 ref 블록 연속 반복 → 하나만 유지
+ * 2. DIVIDER + SPACE_40 + DIVIDER 패턴 → DIVIDER 하나로 축소
+ */
+const deduplicateBlocks = (blocks: string[]): string[] => {
+  const divider = ref(BLOCK.DIVIDER)
+  const space40 = ref(BLOCK.SPACE_40)
+  const result: string[] = []
+
+  for (const block of blocks) {
+    const last = result[result.length - 1]
+
+    // 동일한 ref 블록 연속 반복 제거
+    if (last === block && block.startsWith("<!-- wp:block")) continue
+
+    // DIVIDER + SPACE_40 + DIVIDER → DIVIDER (중간 SPACE_40 + 두 번째 DIVIDER 제거)
+    if (block === divider && result.length >= 2) {
+      if (last === space40 && result[result.length - 2] === divider) {
+        result.pop()
+        continue
+      }
+    }
+
+    result.push(block)
+  }
+
+  return result
 }
 
 /** 파싱된 Ghost HTML 요소 */
@@ -262,6 +304,45 @@ class GhostHtmlParser {
 
       const parsed = this.parseFragment(trimmed)
       if (parsed) elements.push(parsed)
+    }
+
+    return this.normalizeHeadings(elements)
+  }
+
+  /**
+   * 헤딩 순서 정규화
+   * - h3 → h2 연속 시 h2 → h3으로 교환
+   * - hr 뒤 첫 헤딩은 반드시 h2
+   */
+  private normalizeHeadings(elements: ParsedElement[]): ParsedElement[] {
+    let afterHr = false
+
+    for (let i = 0; i < elements.length; i++) {
+      const el = elements[i]
+
+      if (el.type === "hr") {
+        afterHr = true
+        continue
+      }
+
+      if (el.type !== "heading") {
+        if (el.type !== "hr") afterHr = false
+        continue
+      }
+
+      // hr 뒤 첫 헤딩은 h2로 승격
+      if (afterHr && el.level > 2) {
+        elements[i] = { ...el, level: 2 }
+      }
+      afterHr = false
+
+      // 연속 헤딩에서 h3 → h2 순서면 교환
+      const next = elements[i + 1]
+      if (next?.type === "heading" && el.level > next.level) {
+        const tmpLevel = el.level
+        elements[i] = { ...elements[i], level: next.level }
+        elements[i + 1] = { ...next, level: tmpLevel }
+      }
     }
 
     return elements
