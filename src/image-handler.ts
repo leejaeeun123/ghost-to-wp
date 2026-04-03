@@ -1,3 +1,4 @@
+import sharp from "sharp"
 import { uploadWpMedia } from "./wp-client.js"
 import type { WpMediaUpload } from "./types.js"
 
@@ -80,21 +81,45 @@ export const replaceImageUrls = async (
 
 /**
  * 대표 이미지(feature_image) 업로드 → WP 미디어 ID 반환
+ * grayscale=true 시 흑백 변환 후 업로드 (그레이 카테고리용)
  */
 export const uploadFeatureImage = async (
   featureImageUrl: string | null,
-  dryRun: boolean
+  dryRun: boolean,
+  grayscale = false
 ): Promise<number> => {
   if (!featureImageUrl) return 0
   if (dryRun) return 0
 
   try {
+    if (grayscale) {
+      const uploaded = await downloadGrayscaleAndUpload(featureImageUrl)
+      return uploaded.id
+    }
     const uploaded = await downloadAndUpload(featureImageUrl)
     return uploaded.id
   } catch (err) {
     console.error(`  대표 이미지 업로드 실패: ${featureImageUrl}`, err)
     return 0
   }
+}
+
+/**
+ * 이미지 다운로드 → 흑백 변환 → WP 업로드
+ */
+const downloadGrayscaleAndUpload = async (
+  imageUrl: string
+): Promise<WpMediaUpload> => {
+  const res = await fetch(imageUrl)
+  if (!res.ok) {
+    throw new Error(`이미지 다운로드 실패: ${imageUrl} (${res.status})`)
+  }
+
+  const original = Buffer.from(await res.arrayBuffer())
+  const grayscaled = await sharp(original).grayscale().jpeg({ quality: 90 }).toBuffer()
+  const filename = extractFilename(imageUrl).replace(/\.[^.]+$/, ".jpg")
+
+  return uploadWpMedia(grayscaled, filename, "image/jpeg")
 }
 
 /**

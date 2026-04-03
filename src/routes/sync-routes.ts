@@ -51,9 +51,11 @@ const syncOnePost = async (
     return { ...base, status: "skipped_duplicate", reason: `WP ID: ${existing.id}` }
   }
 
+  const isGray = post.tags.some((t) => t.name === "그레이" || t.slug === "gray")
+
   const wpHtml = transformGhostToWp(post.html, wpAuthorId ?? undefined)
   const { html: finalHtml } = await replaceImageUrls(wpHtml, false)
-  const featuredMediaId = await uploadFeatureImage(post.feature_image, false)
+  const featuredMediaId = await uploadFeatureImage(post.feature_image, false, isGray)
   const categories = mapCategories(post.tags)
   const wpTagNames = extractWpTags(post.tags)
 
