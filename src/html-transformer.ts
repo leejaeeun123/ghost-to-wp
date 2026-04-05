@@ -190,8 +190,8 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
   const parser = new GhostHtmlParser(ghostHtml)
   const elements = parser.parse()
 
-  let isFirstSection = true
   let lastWasInflowLink = false
+  let h3CountInSection = 0
   const inflowBuffer: InflowLinkInfo[] = []
 
   /** 버퍼에 쌓인 유입링크를 한 블록으로 플러시 */
@@ -217,16 +217,17 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
     switch (el.type) {
       case "heading": {
         if (el.level <= 2) {
-          if (!isFirstSection && !lastWasInflowLink) {
-            blocks.push(ref(BLOCK.SPACE_40))
-            blocks.push(ref(BLOCK.DIVIDER))
-          }
+          // H2: 항상 40px + 구분선 + 100px 스페이서 (WP 규칙)
+          blocks.push(ref(BLOCK.SPACE_40))
+          blocks.push(ref(BLOCK.DIVIDER))
           blocks.push(spacer100())
           blocks.push(wpHeadingH2(el.text))
           blocks.push(ref(BLOCK.SPACE_40))
-          isFirstSection = false
+          h3CountInSection = 0
         } else {
-          blocks.push(ref(BLOCK.SPACE_70))
+          h3CountInSection++
+          // H3: 첫번째 40px, 두번째부터 70px (WP #33050 패턴)
+          blocks.push(h3CountInSection >= 2 ? ref(BLOCK.SPACE_70) : ref(BLOCK.SPACE_40))
           blocks.push(wpHeadingH3(el.text))
         }
         lastWasInflowLink = false
