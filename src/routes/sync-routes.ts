@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { fetchPostBySlug } from "../ghost-client.js"
-import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoastMetaDesc } from "../wp-client.js"
+import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoastMeta } from "../wp-client.js"
 import { transformGhostToWp } from "../html-transformer.js"
 import { replaceImageUrls, uploadFeatureImage } from "../image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
 import { mapCategories, extractWpTags } from "../category-mapper.js"
+import { generateEnglishSlug } from "../slug-generator.js"
 import type { GhostPost, SyncResult } from "../types.js"
 
 export const syncRoutes = Router()
@@ -24,6 +25,15 @@ const splitToTwoLines = (text: string): string => {
   const mid = trimmed.length / 2
   const best = spaces.reduce((a, b) => Math.abs(a - mid) < Math.abs(b - mid) ? a : b)
   return trimmed.substring(0, best) + " <br>" + trimmed.substring(best + 1)
+}
+
+/** 기준일의 직전 금요일 계산 (ex. 4/13 일 → 4/10 금) */
+const getPreviousFriday = (dateStr: string): string => {
+  const d = new Date(dateStr)
+  const day = d.getDay() // 0=일, 5=금
+  const daysBack = (day + 2) % 7 || 7 // 금요일이면 7일 전
+  d.setDate(d.getDate() - daysBack)
+  return d.toISOString()
 }
 
 const syncOnePost = async (
@@ -68,23 +78,39 @@ const syncOnePost = async (
     ? splitToTwoLines(cleanText(post.custom_excerpt))
     : ""
 
+  const englishSlug = await generateEnglishSlug(post.title, post.slug)
+
   const wpPost = await createWpPost({
     title: splitToTwoLines(cleanText(post.title)),
-    slug: post.slug,
+    slug: englishSlug,
     content: finalHtml,
     excerpt,
     status,
-    date: status === "future" && scheduleDate ? scheduleDate : post.published_at,
+    date: status === "future" && scheduleDate
+      ? scheduleDate
+      : getPreviousFriday(post.published_at),
     categories,
     tags: wpTagIds,
     featured_media: featuredMediaId,
     author: wpAuthorId,
   })
 
-  if (post.custom_excerpt) {
-    const metaDesc = `${cleanText(post.custom_excerpt)} |`
-    await setYoastMetaDesc(wpPost.id, metaDesc)
-  }
+  // SEO + 소셜 메타 설정
+  const metaDesc = post.custom_excerpt ? `${cleanText(post.custom_excerpt)} |` : ""
+  const primaryTag = post.tags[0]?.name ?? ""
+  const socialTitle = "%%title%% %%sep%% %%sitename%% %%primary_category%%"
+  const featureImageUrl = post.feature_image ?? ""
+
+  await setYoastMeta(wpPost.id, {
+    _yoast_wpseo_focuskw: primaryTag,
+    _yoast_wpseo_metadesc: metaDesc,
+    "_yoast_wpseo_opengraph-image": featureImageUrl,
+    "_yoast_wpseo_opengraph-title": socialTitle,
+    "_yoast_wpseo_opengraph-description": metaDesc,
+    "_yoast_wpseo_twitter-image": featureImageUrl,
+    "_yoast_wpseo_twitter-title": socialTitle,
+    "_yoast_wpseo_twitter-description": metaDesc,
+  })
 
   return { ...base, status: "created", wpPostId: wpPost.id }
 }

@@ -21,6 +21,6 @@ app.use("/api/sync", syncRoutes)
 app.use("/api/wp", wpRoutes)
 
 app.listen(PORT, () => {
-  console.log(`\n  Ghost → WP Admin`)
+  console.log(`\n  ANTIEGG 웹 업로드 AX`)
   console.log(`  http://localhost:${PORT}\n`)
 })

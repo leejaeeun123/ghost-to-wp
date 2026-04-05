@@ -113,18 +113,31 @@ export const uploadWpMedia = async (
   return res.json() as Promise<WpMediaUpload>
 }
 
-/** Yoast SEO 메타 설명 설정 (XML-RPC 경유) */
-export const setYoastMetaDesc = async (
+/** Yoast SEO 메타 일괄 설정 (XML-RPC 경유) */
+export const setYoastMeta = async (
   wpPostId: number,
-  metaDesc: string
+  fields: Record<string, string>
 ): Promise<void> => {
   const apiUrl = process.env.WP_API_URL
   const username = process.env.WP_USERNAME
   const appPassword = process.env.WP_APP_PASSWORD
   if (!apiUrl || !username || !appPassword) return
 
+  const entries = Object.entries(fields).filter(([, v]) => v)
+  if (entries.length === 0) return
+
   const escapeXml = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+
+  const customFields = entries
+    .map(
+      ([key, value]) =>
+        `<value><struct>
+            <member><name>key</name><value><string>${escapeXml(key)}</string></value></member>
+            <member><name>value</name><value><string>${escapeXml(value)}</string></value></member>
+          </struct></value>`
+    )
+    .join("\n          ")
 
   const body = `<?xml version="1.0"?>
 <methodCall>
@@ -138,10 +151,7 @@ export const setYoastMetaDesc = async (
       <member>
         <name>custom_fields</name>
         <value><array><data>
-          <value><struct>
-            <member><name>key</name><value><string>_yoast_wpseo_metadesc</string></value></member>
-            <member><name>value</name><value><string>${escapeXml(metaDesc)}</string></value></member>
-          </struct></value>
+          ${customFields}
         </data></array></value>
       </member>
     </struct></value></param>
@@ -154,6 +164,12 @@ export const setYoastMetaDesc = async (
     body,
   })
 }
+
+/** 하위 호환용 래퍼 */
+export const setYoastMetaDesc = async (
+  wpPostId: number,
+  metaDesc: string
+): Promise<void> => setYoastMeta(wpPostId, { _yoast_wpseo_metadesc: metaDesc })
 
 /** WP 태그 생성 (없으면 생성, 있으면 기존 반환) */
 export const findOrCreateWpTag = async (name: string): Promise<number> => {

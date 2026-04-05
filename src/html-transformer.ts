@@ -33,8 +33,23 @@ const wpParagraph = (inner: string, attrs?: string): string => {
   return `<!-- wp:paragraph${attrStr} -->\n${inner}\n<!-- /wp:paragraph -->`
 }
 
-const wpHeadingH2 = (text: string): string =>
-  `<!-- wp:heading {"textAlign":"center"} -->\n<h2 class="wp-block-heading has-text-align-center">${text}</h2>\n<!-- /wp:heading -->`
+const wpHeadingH2 = (text: string): string => {
+  const formatted = text.length > 20 ? splitH2AtMiddleSpace(text) : text
+  return `<!-- wp:heading {"textAlign":"center"} -->\n<h2 class="wp-block-heading has-text-align-center">${formatted}</h2>\n<!-- /wp:heading -->`
+}
+
+/** H2 텍스트가 20자 초과 시 가장 가까운 중간 공백에서 줄바꿈 */
+const splitH2AtMiddleSpace = (text: string): string => {
+  if (text.includes("<br")) return text
+  const spaces: number[] = []
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === " ") spaces.push(i)
+  }
+  if (spaces.length === 0) return text
+  const mid = text.length / 2
+  const best = spaces.reduce((a, b) => Math.abs(a - mid) < Math.abs(b - mid) ? a : b)
+  return text.substring(0, best) + "<br>" + text.substring(best + 1)
+}
 
 const wpHeadingH3 = (text: string): string =>
   `<!-- wp:heading {"level":3} -->\n<h3 class="wp-block-heading">${text}</h3>\n<!-- /wp:heading -->`
@@ -77,13 +92,79 @@ const wpInflowLink = (href: string, text: string): string => [
   ref(BLOCK.DIVIDER),
   ref(BLOCK.SPACE_20),
   `<!-- wp:paragraph {"align":"center","style":{"typography":{"fontSize":"15px"}}} -->`,
-  `<p class="has-text-align-center" style="font-size:15px">`,
-  `<a href="${href}" target="_blank" rel="noreferrer noopener">${text}</a>`,
-  `</p>`,
+  `<p class="has-text-align-center" style="font-size:15px"><a href="${href}" target="_blank" rel="noreferrer noopener">${text}</a></p>`,
   `<!-- /wp:paragraph -->`,
   ref(BLOCK.SPACE_10),
   ref(BLOCK.DIVIDER),
 ].join("\n")
+
+/** 유입링크 분류 정보 */
+type InflowLinkInfo = { href: string; text: string; sortOrder: number }
+
+/** 행동 유도 텍스트 판별 (~가기, ~보기 등) */
+const isActionText = (text: string): boolean =>
+  /(?:가기|보기|보러|읽으러|시청하러|플레이하러)\s*$/.test(text)
+
+/**
+ * 유입링크 분류 + WP 포맷팅
+ *
+ * WP 실제 패턴 기반:
+ * - Instagram URL → INSTAGRAM : @username (원본 텍스트 무시)
+ * - 행동 유도 텍스트(~가기/~보기) → 원본 텍스트 유지
+ * - 북마크 타이틀 있음 → WEBSITE : [타이틀]
+ * - 텍스트 없음(URL만) → WEBSITE : [도메인명]
+ */
+const classifyInflowLink = (href: string, originalText: string): InflowLinkInfo => {
+  try {
+    const url = new URL(href)
+    const hostname = url.hostname.replace(/^www\./, "")
+
+    // Instagram → 항상 @username 포맷
+    if (hostname.includes("instagram.com")) {
+      const username = url.pathname.split("/").filter(Boolean)[0] ?? ""
+      return { href, text: `INSTAGRAM : @${username}`, sortOrder: 1 }
+    }
+
+    // 행동 유도 텍스트 → 원본 유지
+    if (originalText && originalText !== href && isActionText(originalText)) {
+      return { href, text: originalText, sortOrder: 2 }
+    }
+
+    // 북마크 타이틀 있음 → WEBSITE : 타이틀
+    if (originalText && originalText !== href && !originalText.startsWith("http")) {
+      return { href, text: `WEBSITE : ${originalText}`, sortOrder: 0 }
+    }
+
+    // 텍스트 없음 → WEBSITE : 도메인명
+    const siteName = hostname.split(".")[0]
+    return { href, text: `WEBSITE : ${siteName.charAt(0).toUpperCase()}${siteName.slice(1)}`, sortOrder: 0 }
+  } catch {
+    return { href, text: originalText || href, sortOrder: 2 }
+  }
+}
+
+/**
+ * 유입링크 그룹 렌더링
+ *
+ * WP 실제 패턴: 여러 링크를 하나의 <p> 안에 <br>로 연결
+ * 정렬: website(0) → instagram(1) → action(2)
+ */
+const wpInflowLinkGroup = (links: InflowLinkInfo[]): string => {
+  const sorted = [...links].sort((a, b) => a.sortOrder - b.sortOrder)
+  const anchors = sorted.map(
+    (link) => `<a href="${link.href}" target="_blank" rel="noreferrer noopener">${link.text}</a>`
+  )
+  return [
+    ref(BLOCK.SPACE_40),
+    ref(BLOCK.DIVIDER),
+    ref(BLOCK.SPACE_20),
+    `<!-- wp:paragraph {"align":"center","style":{"typography":{"fontSize":"15px"}}} -->`,
+    `<p class="has-text-align-center" style="font-size:15px">${anchors.join("<br>")}</p>`,
+    `<!-- /wp:paragraph -->`,
+    ref(BLOCK.SPACE_10),
+    ref(BLOCK.DIVIDER),
+  ].join("\n")
+}
 
 const wpYouTubeEmbed = (url: string, caption?: string): string => {
   const captionHtml = caption
@@ -111,9 +192,27 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
 
   let isFirstSection = true
   let lastWasInflowLink = false
+  const inflowBuffer: InflowLinkInfo[] = []
+
+  /** 버퍼에 쌓인 유입링크를 한 블록으로 플러시 */
+  const flushInflow = () => {
+    if (inflowBuffer.length === 0) return
+    if (inflowBuffer.length === 1) {
+      blocks.push(wpInflowLink(inflowBuffer[0].href, inflowBuffer[0].text))
+    } else {
+      blocks.push(wpInflowLinkGroup(inflowBuffer))
+    }
+    inflowBuffer.length = 0
+    lastWasInflowLink = true
+  }
 
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i]
+
+    // 유입링크가 아닌 요소를 만나면 버퍼 플러시
+    if (el.type !== "bookmark" && el.type !== "button") {
+      flushInflow()
+    }
 
     switch (el.type) {
       case "heading": {
@@ -127,7 +226,7 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
           blocks.push(ref(BLOCK.SPACE_40))
           isFirstSection = false
         } else {
-          blocks.push(ref(BLOCK.SPACE_40))
+          blocks.push(ref(BLOCK.SPACE_70))
           blocks.push(wpHeadingH3(el.text))
         }
         lastWasInflowLink = false
@@ -175,14 +274,12 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       }
 
       case "bookmark": {
-        blocks.push(wpInflowLink(el.href, el.text))
-        lastWasInflowLink = true
+        inflowBuffer.push(classifyInflowLink(el.href, el.text))
         break
       }
 
       case "button": {
-        blocks.push(wpInflowLink(el.href, el.text))
-        lastWasInflowLink = true
+        inflowBuffer.push(classifyInflowLink(el.href, el.text))
         break
       }
 
@@ -217,7 +314,10 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
     }
   }
 
-  // 아티클 종결 시퀀스
+  // 루프 종료 후 남은 유입링크 플러시
+  flushInflow()
+
+  // 아티클 종결 ��퀀스
   if (!lastWasInflowLink) {
     blocks.push(ref(BLOCK.SPACE_40))
     blocks.push(ref(BLOCK.DIVIDER))

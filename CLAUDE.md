@@ -148,9 +148,61 @@ npx tsx src/index.ts --slug "x" --dry-run # 조합 가능
 3. 기존 WP 아티클(수동 업로드된 것)과 새 아티클의 HTML 구조 비교
 4. 정상 확인 후 전체 동기화
 
+## 유입링크 규칙 (html-transformer.ts)
+
+### 텍스트 포맷팅 (WP 실제 아티클 패턴 기반)
+- **Instagram URL** → `INSTAGRAM : @아이디` (원본 텍스트 무시, URL에서 추출)
+- **행동 유도 텍스트** (~가기, ~보기) → Ghost 원본 텍스트 유지
+- **북마크 타이틀** 있는 경우 → `WEBSITE : [타이틀]`
+- **텍스트 없음** (URL만) → `WEBSITE : [도메인명]`
+
+### 그룹 렌더링 (연속 유입링크)
+여러 유입링크가 연속되면 하나의 `<p>` 태그에 `<br>`로 연결 (WP #32837 패턴).
+정렬 순서: website(0) → instagram(1) → action(2).
+구분선/스페이서는 그룹 단위로 한 번만 사용.
+
+### 단일 유입링크 시퀀스
+```
+40px(19650) → divider(5701) → 20px(19912) → <p 15px center>링크</p> → 10px(19767) → divider(5701)
+```
+
+## H2/H3 규칙
+
+- H2: 20자(띄어쓰기 포함) 초과 시 가장 가까운 중간 공백에서 `<br>` 줄바꿈
+- H3: 문단 구분 시 70px 스페이서(27530) 사용
+
+## SEO/소셜 메타 (Yoast)
+
+동기화 시 자동 설정되는 Yoast 필드:
+| 필드 | 값 |
+|------|------|
+| 초점 키프레이즈 | Ghost 첫 번째 태그명 |
+| 슬러그 | 제목 영어 번역 (Google Translate API) |
+| 메타 설명 | `부제목 \|` (추후 Notion 바이럴멘트 연동) |
+| 소셜 제목 | `%%title%% %%sep%% %%sitename%% %%primary_category%%` |
+| 소셜 설명 | 메타 설명과 동일 |
+| 소셜 이미지 | 대표이미지와 동일 |
+
+## 발행일 로직
+
+Ghost 발행일 기준 직전 금요일을 WP draft 날짜로 설정.
+(예: Ghost 4/13 일요일 → WP draft 4/10 금요일)
+추후 Notion 발행일로 교체 가능.
+
+## 환경변수
+
+| 변수 | 필수 | 용도 |
+|------|------|------|
+| `GHOST_API_URL` | O | Ghost API URL |
+| `GHOST_ADMIN_API_KEY` | O | Ghost Admin API 키 |
+| `WP_API_URL` | O | WordPress API URL |
+| `WP_USERNAME` | O | WP 사용자명 |
+| `WP_APP_PASSWORD` | O | WP 앱 비밀번호 |
+| `GOOGLE_TRANSLATE_API_KEY` | X | 슬러그 영어 번역 (없으면 Ghost slug 사용) |
+
 ## 확장 예정
 
+- [ ] Notion DB 연동 (바이럴멘트, 발행일)
 - [ ] 카테고리 위계 (매거진 → 큐레이션 → 카테고리 / 그레이)
-- [ ] 예약 발행 (`--schedule "2026-04-01T09:00:00"`)
 - [ ] 동기화 로그 파일 출력
 - [ ] 특정 날짜 이후 포스트만 동기화 (`--after "2026-01-01"`)
