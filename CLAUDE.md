@@ -65,7 +65,10 @@ Ghost HTML은 일반 HTML이지만, ANTIEGG WordPress는 Gutenberg Block Editor 
 | Ghost 요소 | WP 변환 | 주의사항 |
 |-----------|---------|---------|
 | `<h2>` | `<!-- wp:heading -->` + 가운데 정렬 | 앞에 반드시 구분선+100px 스페이서, 볼드(strong) 제거 |
-| `<p>` | `<!-- wp:paragraph -->` | 본문 내 링크에 `target="_blank"` 필수 |
+| `<p>` | `<!-- wp:paragraph -->` | **본문 내 하이퍼링크 금지** → 유입링크로 분리 |
+| `<p>` 내 `<a>` | 유입링크 시퀀스 | `<a>` 태그 제거 → 텍스트만 남기고 문단 아래 유입링크 추가 |
+| 연속 이미지 2개 | `<!-- wp:columns -->` | 이미지 2개 컬럼 블록 패턴 사용 |
+| Ghost 갤러리 카드 | `<!-- wp:columns -->` | `kg-gallery-card` → 2개씩 컬럼 블록 |
 | `<figure><img>` | `<!-- wp:image -->` + 가운데 정렬 | 가로형 700px, 세로형 467px, 앞뒤 40px 스페이서 |
 | `<figcaption>` | `<sup>` 태그로 감싸기 | |
 | YouTube iframe | `<!-- wp:embed -->` 블록 | providerNameSlug: youtube, 16:9 |
@@ -75,6 +78,35 @@ Ghost HTML은 일반 HTML이지만, ANTIEGG WordPress는 Gutenberg Block Editor 
 | Ghost bookmark | 유입링크 고정 시퀀스 | spacer→구분선→spacer→링크→spacer→구분선 |
 | `<ul>/<ol>` | `<!-- wp:list -->` | 참고문헌 스타일: 14px, #9d9d9d |
 | 결문 (제목 없는 마지막 섹션) | 구분선 + 100px 스페이서 + 본문 | hr 이후 h2가 없으면 자동 적용 |
+
+### 본문 하이퍼링크 → 유입링크 변환 규칙
+
+Ghost 본문 `<p>` 태그 내에 `<a>` 하이퍼링크가 있을 경우:
+1. **WP에서 인라인 하이퍼링크 절대 사용 금지**
+2. `<a>` 태그를 제거하고 텍스트만 남김 (예: `<a href="...">갤러리</a>` → `갤러리`)
+3. 추출된 링크는 문단 아래에 유입링크 시퀀스로 분리 출력
+4. 유입링크 워딩은 URL을 분석하여 자동 결정 (`classifyInflowLink` 로직)
+
+### 이미지 컬럼 블록 규칙
+
+연속된 이미지 2개 또는 Ghost 갤러리 카드(`kg-gallery-card`)는 WP 컬럼 블록으로 변환:
+```
+<!-- wp:columns {"metadata":{"categories":[],"patternName":"core/block/20329","name":"이미지 2개 컬럼"}} -->
+<div class="wp-block-columns"><!-- wp:column -->
+<div class="wp-block-column"><!-- wp:image {"align":"center"} -->
+<figure class="wp-block-image aligncenter"><img src="..." alt=""/></figure>
+<!-- /wp:image --></div>
+<!-- /wp:column -->
+
+<!-- wp:column -->
+<div class="wp-block-column"><!-- wp:image {"align":"center"} -->
+<figure class="wp-block-image aligncenter"><img src="..." alt=""/></figure>
+<!-- /wp:image --></div>
+<!-- /wp:column --></div>
+<!-- /wp:columns -->
+```
+- 갤러리 이미지가 홀수인 경우 마지막 1개는 단일 이미지로 출력
+- 컬럼 블록 앞뒤에 40px 스페이서 적용
 
 ### 유입링크 고정 시퀀스 (순서 변경 금지)
 

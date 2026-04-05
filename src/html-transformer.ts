@@ -166,6 +166,22 @@ const wpInflowLinkGroup = (links: InflowLinkInfo[]): string => {
   ].join("\n")
 }
 
+const wpImageColumns = (src1: string, src2: string): string => [
+  `<!-- wp:columns {"metadata":{"categories":[],"patternName":"core/block/20329","name":"이미지 2개 컬럼"}} -->`,
+  `<div class="wp-block-columns"><!-- wp:column -->`,
+  `<div class="wp-block-column"><!-- wp:image {"align":"center"} -->`,
+  `<figure class="wp-block-image aligncenter"><img src="${src1}" alt=""/></figure>`,
+  `<!-- /wp:image --></div>`,
+  `<!-- /wp:column -->`,
+  ``,
+  `<!-- wp:column -->`,
+  `<div class="wp-block-column"><!-- wp:image {"align":"center"} -->`,
+  `<figure class="wp-block-image aligncenter"><img src="${src2}" alt=""/></figure>`,
+  `<!-- /wp:image --></div>`,
+  `<!-- /wp:column --></div>`,
+  `<!-- /wp:columns -->`,
+].join("\n")
+
 const wpYouTubeEmbed = (url: string, caption?: string): string => {
   const captionHtml = caption
     ? `<figcaption class="wp-element-caption"><sup>${caption}</sup></figcaption>`
@@ -236,11 +252,30 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
 
       case "paragraph": {
         blocks.push(wpParagraph(`<p>${el.html}</p>`))
-        lastWasInflowLink = false
+        if (el.links && el.links.length > 0) {
+          const inflowLinks = el.links.map((l) => classifyInflowLink(l.href, l.text))
+          if (inflowLinks.length === 1) {
+            blocks.push(wpInflowLink(inflowLinks[0].href, inflowLinks[0].text))
+          } else {
+            blocks.push(wpInflowLinkGroup(inflowLinks))
+          }
+          lastWasInflowLink = true
+        } else {
+          lastWasInflowLink = false
+        }
         break
       }
 
       case "image": {
+        const nextEl = elements[i + 1]
+        if (nextEl?.type === "image") {
+          blocks.push(ref(BLOCK.SPACE_40))
+          blocks.push(wpImageColumns(el.src, nextEl.src))
+          blocks.push(ref(BLOCK.SPACE_40))
+          i++
+          lastWasInflowLink = false
+          break
+        }
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpImage(el.src, el.width, el.caption))
         blocks.push(ref(BLOCK.SPACE_40))
@@ -294,6 +329,22 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       case "youtube": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpYouTubeEmbed(el.url, el.caption))
+        blocks.push(ref(BLOCK.SPACE_40))
+        lastWasInflowLink = false
+        break
+      }
+
+      case "gallery": {
+        blocks.push(ref(BLOCK.SPACE_40))
+        for (let j = 0; j < el.images.length; j += 2) {
+          const img1 = el.images[j]
+          const img2 = el.images[j + 1]
+          if (img2) {
+            blocks.push(wpImageColumns(img1.src, img2.src))
+          } else {
+            blocks.push(wpImage(img1.src, img1.width, img1.caption))
+          }
+        }
         blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
@@ -371,8 +422,9 @@ const deduplicateBlocks = (blocks: string[]): string[] => {
 /** 파싱된 Ghost HTML 요소 */
 type ParsedElement =
   | { type: "heading"; level: number; text: string }
-  | { type: "paragraph"; html: string }
+  | { type: "paragraph"; html: string; links?: Array<{ href: string; text: string }> }
   | { type: "image"; src: string; width: number; caption?: string }
+  | { type: "gallery"; images: Array<{ src: string; width: number; caption?: string }> }
   | { type: "quote"; text: string; source?: string }
   | { type: "hr" }
   | { type: "bookmark"; href: string; text: string }
@@ -427,13 +479,13 @@ class GhostHtmlParser {
       }
 
       if (el.type !== "heading") {
-        if (el.type !== "hr") afterHr = false
+        afterHr = false
         continue
       }
 
       // hr 뒤 첫 헤딩은 h2로 승격
       if (afterHr && el.level > 2) {
-        elements[i] = { ...el, level: 2 }
+        elements[i] = { type: "heading", level: 2, text: el.text }
       }
       afterHr = false
 
@@ -441,8 +493,8 @@ class GhostHtmlParser {
       const next = elements[i + 1]
       if (next?.type === "heading" && el.level > next.level) {
         const tmpLevel = el.level
-        elements[i] = { ...elements[i], level: next.level }
-        elements[i + 1] = { ...next, level: tmpLevel }
+        elements[i] = { type: "heading", level: next.level, text: el.text }
+        elements[i + 1] = { type: "heading", level: tmpLevel, text: next.text }
       }
     }
 
@@ -463,6 +515,7 @@ class GhostHtmlParser {
     if (/^<[uo]l\b/i.test(html)) return this.parseList(html)
     if (/^<div class="kg-bookmark/i.test(html)) return this.parseBookmark(html)
     if (/^<div class="kg-card kg-button-card/i.test(html)) return this.parseButton(html)
+    if (/^<div class="kg-card kg-gallery-card/i.test(html)) return this.parseGallery(html)
     if (/^<div class="kg-/i.test(html)) return { type: "html", html }
     if (/^<p\b/i.test(html)) return this.parseParagraph(html)
 
@@ -572,6 +625,23 @@ class GhostHtmlParser {
     return { type: "bookmark", href, text: title }
   }
 
+  private parseGallery(html: string): ParsedElement {
+    const images: Array<{ src: string; width: number; caption?: string }> = []
+    const imgPattern = /<img[^>]+src="([^"]+)"[^>]*>/gi
+    let imgMatch: RegExpExecArray | null
+    while ((imgMatch = imgPattern.exec(html)) !== null) {
+      const imgTag = imgMatch[0]
+      const src = imgMatch[1]
+      const wm = imgTag.match(/width="(\d+)"/)
+      const hm = imgTag.match(/height="(\d+)"/)
+      const w = wm ? parseInt(wm[1]) : 0
+      const h = hm ? parseInt(hm[1]) : 0
+      images.push({ src, width: h > w ? 467 : 700 })
+    }
+    if (images.length === 0) return { type: "html", html }
+    return { type: "gallery", images }
+  }
+
   private parseParagraph(html: string): ParsedElement {
     const inner = html
       .replace(/^<p[^>]*>/i, "")
@@ -580,11 +650,20 @@ class GhostHtmlParser {
 
     if (!inner) return { type: "paragraph", html: "" }
 
-    const linkified = inner.replace(
-      /<a\s+href="([^"]+)"[^>]*>/gi,
-      '<a href="$1" target="_blank" rel="noreferrer noopener">'
-    )
+    // Extract inline links → 유입링크로 분리
+    const linkPattern = /<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+    const links: Array<{ href: string; text: string }> = []
+    let linkMatch: RegExpExecArray | null
+    while ((linkMatch = linkPattern.exec(inner)) !== null) {
+      links.push({ href: linkMatch[1], text: linkMatch[2].replace(/<[^>]+>/g, "").trim() })
+    }
 
-    return { type: "paragraph", html: linkified }
+    if (links.length > 0) {
+      // Remove <a> tags, keep inner text only (no inline hyperlinks in WP)
+      const cleanHtml = inner.replace(/<a\s+href="[^"]*"[^>]*>([\s\S]*?)<\/a>/gi, "$1")
+      return { type: "paragraph", html: cleanHtml, links }
+    }
+
+    return { type: "paragraph", html: inner }
   }
 }
