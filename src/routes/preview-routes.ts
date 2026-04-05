@@ -3,6 +3,7 @@ import { fetchPostBySlug } from "../ghost-client.js"
 import { fetchWpUsers } from "../wp-client.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
 import { transformGhostToWp } from "../html-transformer.js"
+import { findNotionArticle } from "../notion-client.js"
 
 export const previewRoutes = Router()
 
@@ -39,12 +40,16 @@ previewRoutes.post("/transform", async (req, res) => {
       images.push(match[1])
     }
 
+    // Notion 아티클 로드맵 조회
+    const notionArticle = await findNotionArticle(slug)
+
     res.json({
       title: post.title,
       ghostHtml: post.html,
       wpHtml,
       images,
       featureImage: post.feature_image,
+      notion: notionArticle,
     })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) })

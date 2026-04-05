@@ -38,6 +38,7 @@ src/
 ├── image-handler.ts     ← 이미지 다운로드 → WP 미디어 업로드 → URL 교체
 ├── author-filter.ts     ← Ghost 작성자 ↔ WP 사용자 매칭
 ├── category-mapper.ts   ← Ghost 태그 → WP 카테고리 매핑
+├── notion-client.ts     ← Notion 아티클 로드맵 DB 연동 (바이럴멘트, 발행일)
 └── types.ts             ← 타입 정의
 ```
 
@@ -241,9 +242,43 @@ Ghost 발행일 기준 직전 금요일을 WP draft 날짜로 설정.
 | `WP_APP_PASSWORD` | O | WP 앱 비밀번호 |
 | `GOOGLE_TRANSLATE_API_KEY` | X | 슬러그 영어 번역 (없으면 Ghost slug 사용) |
 
-## 확장 예정
+## Notion 아티클 로드맵 연동 (notion-client.ts)
 
-- [ ] Notion DB 연동 (바이럴멘트, 발행일)
+### DB 정보
+- **DB ID**: 환경변수 `NOTION_ARTICLE_DB_ID`
+- **매칭 방식**: Ghost 슬러그 ↔ Notion "Square CMS" URL 필드 (url.contains 필터)
+
+### 데이터 흐름 (Notion 우선, Ghost 폴백)
+
+| 용도 | Notion 필드 | Ghost 폴백 | 적용 위치 |
+|------|------------|-----------|----------|
+| Yoast 메타 설명 | 바이럴 멘트 | custom_excerpt | sync-routes.ts `metaDesc` |
+| WP 발행일 | 발행일 | Ghost published_at → 직전 금요일 | sync-routes.ts `wpDate` |
+| 부제목 | 부제목 | custom_excerpt | 폴백용 |
+
+### Notion DB 필드 구조
+
+| 필드명 | 타입 | 용도 |
+|-------|------|------|
+| 아티클 제목 | title | 제목 |
+| 바이럴 멘트 | rich_text | Yoast 메타 설명 |
+| 부제목 | rich_text | 메타 설명 폴백 |
+| 발행일 | date | WP 발행일 |
+| 상태 | select | 진행 상태 |
+| Square CMS | url | Ghost 슬러그 매칭 키 |
+| 🔴 카테고리 | multi_select | 카테고리 |
+| 🔴 키워드 | multi_select | 키워드/태그 |
+
+### 환경변수
+
+| 변수 | 필수 | 용도 |
+|------|------|------|
+| `NOTION_API_KEY` | X | Notion Internal Integration 토큰 |
+| `NOTION_ARTICLE_DB_ID` | X | 아티클 로드맵 DB ID |
+
+Notion 환경변수가 없으면 자동으로 Ghost 데이터만 사용 (graceful fallback).
+
+## 확장 예정
 - [ ] 카테고리 위계 (매거진 → 큐레이션 → 카테고리 / 그레이)
 - [ ] 동기화 로그 파일 출력
 - [ ] 특정 날짜 이후 포스트만 동기화 (`--after "2026-01-01"`)

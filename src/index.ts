@@ -5,6 +5,7 @@ import { transformGhostToWp } from "./html-transformer.js"
 import { replaceImageUrls, uploadFeatureImage } from "./image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "./author-filter.js"
 import { mapCategories, extractWpTags } from "./category-mapper.js"
+import { findNotionArticle } from "./notion-client.js"
 import type { GhostPost, SyncResult, SyncOptions } from "./types.js"
 
 const parseArgs = (): SyncOptions => {
@@ -51,6 +52,14 @@ const syncPost = async (
       status: "skipped_duplicate",
       reason: `WP에 동일 slug 존재 (ID: ${existing.id})`,
     }
+  }
+
+  log(`  Notion 조회 중...`)
+  const notionArticle = await findNotionArticle(post.slug)
+  if (notionArticle) {
+    log(`  Notion 매칭: "${notionArticle.title}" (바이럴멘트: ${notionArticle.viralMent ? "있음" : "없음"}, 발행일: ${notionArticle.publishDate ?? "없음"})`)
+  } else {
+    log(`  Notion 매칭 없음 — Ghost 데이터 사용`)
   }
 
   log(`  HTML 변환 중...`)

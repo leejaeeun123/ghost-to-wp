@@ -6,6 +6,7 @@ import { replaceImageUrls, uploadFeatureImage } from "../image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
 import { mapCategories, extractWpTags } from "../category-mapper.js"
 import { generateEnglishSlug } from "../slug-generator.js"
+import { findNotionArticle } from "../notion-client.js"
 import type { GhostPost, SyncResult } from "../types.js"
 
 export const syncRoutes = Router()
@@ -80,15 +81,24 @@ const syncOnePost = async (
 
   const englishSlug = await generateEnglishSlug(post.title, post.slug)
 
+  // Notion 아티클 로드맵 조회 (바이럴멘트, 발행일)
+  const notionArticle = await findNotionArticle(post.slug)
+  if (notionArticle) {
+    console.log(`  Notion 매칭: "${notionArticle.title}" (${notionArticle.status})`)
+  }
+
+  // 발행일: Notion 발행일 > 스케줄 > 직전 금요일
+  const wpDate = status === "future" && scheduleDate
+    ? scheduleDate
+    : notionArticle?.publishDate ?? getPreviousFriday(post.published_at)
+
   const wpPost = await createWpPost({
     title: splitToTwoLines(cleanText(post.title)),
     slug: englishSlug,
     content: finalHtml,
     excerpt,
     status,
-    date: status === "future" && scheduleDate
-      ? scheduleDate
-      : getPreviousFriday(post.published_at),
+    date: wpDate,
     categories,
     tags: wpTagIds,
     featured_media: featuredMediaId,
@@ -96,7 +106,10 @@ const syncOnePost = async (
   })
 
   // SEO + 소셜 메타 설정
-  const metaDesc = post.custom_excerpt ? `${cleanText(post.custom_excerpt)} |` : ""
+  // 메타 설명: Notion 바이럴멘트 > Ghost excerpt > 빈값
+  const metaDesc = notionArticle?.viralMent
+    ? `${cleanText(notionArticle.viralMent)} |`
+    : post.custom_excerpt ? `${cleanText(post.custom_excerpt)} |` : ""
   const primaryTag = post.tags[0]?.name ?? ""
   const socialTitle = "%%title%% %%sep%% %%sitename%% %%primary_category%%"
   const featureImageUrl = post.feature_image ?? ""
