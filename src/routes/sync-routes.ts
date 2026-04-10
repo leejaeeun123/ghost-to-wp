@@ -37,7 +37,7 @@ const getPreviousFriday = (dateStr: string): string => {
   return d.toISOString()
 }
 
-const syncOnePost = async (
+export const syncOnePost = async (
   post: GhostPost,
   status: "draft" | "publish" | "future",
   scheduleDate?: string

@@ -128,6 +128,48 @@ export const findNotionArticle = async (
 }
 
 /**
+ * 발행일 범위로 Notion 아티클 조회 (자동 동기화용)
+ * Square CMS URL이 있는 항목만 반환 (Ghost에 존재하는 아티클)
+ */
+export const fetchArticlesForWeek = async (
+  fromDate: string,
+  toDate: string
+): Promise<NotionArticle[]> => {
+  const config = getNotionConfig()
+  if (!config) {
+    console.log("  Notion 환경변수 미설정 — 자동 동기화 불가")
+    return []
+  }
+
+  try {
+    const data = await notionFetch<NotionQueryResponse>(
+      `/databases/${config.dbId}/query`,
+      config.apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filter: {
+            and: [
+              { property: "발행일", date: { on_or_after: fromDate } },
+              { property: "발행일", date: { on_or_before: toDate } },
+              { property: "Square CMS", url: { is_not_empty: true } },
+            ],
+          },
+        }),
+      }
+    )
+
+    return data.results.map((page) =>
+      extractArticle(page.properties as Record<string, any>)
+    )
+  } catch (err) {
+    console.error("Notion 주간 조회 실패:", err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+/**
  * Notion DB 전체 조회 (웹 어드민 용)
  * 최근 수정순으로 반환
  */

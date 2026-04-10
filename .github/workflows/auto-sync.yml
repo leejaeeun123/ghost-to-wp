@@ -1,0 +1,32 @@
+name: Auto Sync Ghost → WP (매주 금요일 11:00 KST)
+
+on:
+  schedule:
+    # UTC 02:00 = KST 11:00, 매주 금요일
+    - cron: "0 2 * * 5"
+  workflow_dispatch: # 수동 실행 지원
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run auto-sync
+        run: npx tsx src/scheduled-sync.ts
+        env:
+          GHOST_API_URL: ${{ secrets.GHOST_API_URL }}
+          GHOST_ADMIN_API_KEY: ${{ secrets.GHOST_ADMIN_API_KEY }}
+          WP_API_URL: ${{ secrets.WP_API_URL }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_ARTICLE_DB_ID: ${{ secrets.NOTION_ARTICLE_DB_ID }}
+          GOOGLE_TRANSLATE_API_KEY: ${{ secrets.GOOGLE_TRANSLATE_API_KEY }}
