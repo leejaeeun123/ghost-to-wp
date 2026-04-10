@@ -10,6 +10,7 @@
  */
 
 export interface NotionArticle {
+  pageId?: string
   title: string
   viralMent: string
   subtitle: string
@@ -164,12 +165,44 @@ export const fetchArticlesForWeek = async (
       }
     )
 
-    return data.results.map((page) =>
-      extractArticle(page.properties as Record<string, any>)
-    )
+    return data.results.map((page) => ({
+      ...extractArticle(page.properties as Record<string, any>),
+      pageId: (page as unknown as { id: string }).id,
+    }))
   } catch (err) {
     console.error("Notion 주간 조회 실패:", err instanceof Error ? err.message : err)
     return []
+  }
+}
+
+/** Notion 페이지에 댓글 추가 (WP 발행 링크 등) */
+export const addNotionComment = async (
+  pageId: string,
+  url: string
+): Promise<boolean> => {
+  const config = getNotionConfig()
+  if (!config) return false
+
+  try {
+    await notionFetch<unknown>(
+      "/comments",
+      config.apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parent: { page_id: pageId },
+          rich_text: [
+            { text: { content: "WP 예약 발행 링크: " } },
+            { text: { content: url, link: { url } } },
+          ],
+        }),
+      }
+    )
+    return true
+  } catch (err) {
+    console.error(`  Notion 댓글 실패 (${pageId}):`, err instanceof Error ? err.message : err)
+    return false
   }
 }
 

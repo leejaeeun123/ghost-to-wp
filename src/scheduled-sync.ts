@@ -12,7 +12,7 @@
  */
 
 import "dotenv/config"
-import { fetchArticlesForWeek } from "./notion-client.js"
+import { fetchArticlesForWeek, addNotionComment } from "./notion-client.js"
 import { fetchPostBySlug } from "./ghost-client.js"
 import { syncOnePost } from "./routes/sync-routes.js"
 import type { SyncResult } from "./types.js"
@@ -84,7 +84,13 @@ export const runScheduledSync = async (): Promise<SyncResult[]> => {
       results.push(result)
 
       if (result.status === "created") {
-        console.log(`    → WP draft 생성 (ID: ${result.wpPostId})`)
+        console.log(`    → WP 예약 발행 (ID: ${result.wpPostId})`)
+        // Notion 댓글에 WP 링크 추가
+        if (article.pageId && result.wpPostId) {
+          const wpLink = `${process.env.WP_API_URL ?? "https://antiegg.kr"}/?p=${result.wpPostId}`
+          const ok = await addNotionComment(article.pageId, wpLink)
+          console.log(`    → Notion 댓글 ${ok ? "완료" : "실패"}`)
+        }
         created++
       } else {
         console.log(`    → ${result.status}: ${result.reason}`)
