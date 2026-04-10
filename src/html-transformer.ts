@@ -25,6 +25,14 @@ const BLOCK = {
 const ref = (id: number): string =>
   `<!-- wp:block {"ref":${id}} /-->`
 
+/** 블록이 스페이서인지 판별 (중복 제거용) */
+const isSpacerBlock = (block: string): boolean =>
+  block === ref(BLOCK.SPACE_40) ||
+  block === ref(BLOCK.SPACE_70) ||
+  block === ref(BLOCK.SPACE_20) ||
+  block === ref(BLOCK.SPACE_10) ||
+  block.startsWith("<!-- wp:spacer")
+
 const spacer100 = (): string =>
   `<!-- wp:spacer -->\n<div style="height:100px" aria-hidden="true" class="wp-block-spacer"></div>\n<!-- /wp:spacer -->`
 
@@ -233,10 +241,20 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
     switch (el.type) {
       case "heading": {
         if (el.level <= 2) {
-          // H2: 항상 40px + 구분선 + 100px 스페이서 (WP 규칙)
-          blocks.push(ref(BLOCK.SPACE_40))
-          blocks.push(ref(BLOCK.DIVIDER))
-          blocks.push(spacer100())
+          // 직전 블록이 구분선이면 H2 자체 구분선 생략 (유입링크/hr 뒤)
+          let hasRecentDivider = false
+          for (let j = blocks.length - 1; j >= 0; j--) {
+            if (isSpacerBlock(blocks[j])) continue
+            if (blocks[j] === ref(BLOCK.DIVIDER)) hasRecentDivider = true
+            break
+          }
+          if (hasRecentDivider) {
+            blocks.push(ref(BLOCK.SPACE_40))
+          } else {
+            blocks.push(ref(BLOCK.SPACE_40))
+            blocks.push(ref(BLOCK.DIVIDER))
+            blocks.push(spacer100())
+          }
           blocks.push(wpHeadingH2(el.text))
           blocks.push(ref(BLOCK.SPACE_40))
           h3CountInSection = 0
@@ -271,14 +289,12 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
         if (nextEl?.type === "image") {
           blocks.push(ref(BLOCK.SPACE_40))
           blocks.push(wpImageColumns(el.src, nextEl.src))
-          blocks.push(ref(BLOCK.SPACE_40))
           i++
           lastWasInflowLink = false
           break
         }
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpImage(el.src, el.width, el.caption))
-        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -286,7 +302,6 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       case "quote": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpQuote(el.text, el.source))
-        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -329,7 +344,6 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       case "youtube": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpYouTubeEmbed(el.url, el.caption))
-        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -345,7 +359,6 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
             blocks.push(wpImage(img1.src, img1.width, img1.caption))
           }
         }
-        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -353,7 +366,6 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       case "embed": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(`<!-- wp:html -->\n<div style="text-align:center">${el.html}</div>\n<!-- /wp:html -->`)
-        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -391,23 +403,26 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
 /**
  * 블록 배열에서 연속 중복 제거
  *
- * 1. 동일한 ref 블록 연속 반복 → 하나만 유지
- * 2. DIVIDER + SPACE_40 + DIVIDER 패턴 → DIVIDER 하나로 축소
+ * 1. 연속 스페이서 → 하나만 유지
+ * 2. 연속 구분선 → 하나만 유지
+ * 3. DIVIDER + SPACER + DIVIDER → DIVIDER 하나로 축소
  */
 const deduplicateBlocks = (blocks: string[]): string[] => {
   const divider = ref(BLOCK.DIVIDER)
-  const space40 = ref(BLOCK.SPACE_40)
   const result: string[] = []
 
   for (const block of blocks) {
     const last = result[result.length - 1]
 
-    // 동일한 ref 블록 연속 반복 제거
-    if (last === block && block.startsWith("<!-- wp:block")) continue
+    // 연속 스페이서 → 하나만 유지
+    if (isSpacerBlock(block) && last && isSpacerBlock(last)) continue
 
-    // DIVIDER + SPACE_40 + DIVIDER → DIVIDER (중간 SPACE_40 + 두 번째 DIVIDER 제거)
+    // 연속 구분선 → 하나만 유지
+    if (block === divider && last === divider) continue
+
+    // DIVIDER + SPACER + DIVIDER → DIVIDER (중간 스페이서 + 두 번째 구분선 제거)
     if (block === divider && result.length >= 2) {
-      if (last === space40 && result[result.length - 2] === divider) {
+      if (last && isSpacerBlock(last) && result[result.length - 2] === divider) {
         result.pop()
         continue
       }
@@ -459,7 +474,25 @@ class GhostHtmlParser {
       if (parsed) elements.push(parsed)
     }
 
-    return this.normalizeHeadings(elements)
+    return this.convertBoldAfterH2ToH3(this.normalizeHeadings(elements))
+  }
+
+  /**
+   * H2 직후 bold 문단(p+strong) → H3로 변환
+   * 예: "몸으로 느끼는 자연"(H2) + "<strong>에르네스토 네토</strong>"(p) → H3
+   */
+  private convertBoldAfterH2ToH3(elements: ParsedElement[]): ParsedElement[] {
+    for (let i = 0; i < elements.length - 1; i++) {
+      const el = elements[i]
+      const next = elements[i + 1]
+      if (el.type === "heading" && el.level <= 2 && next.type === "paragraph") {
+        const strongMatch = next.html.match(/^<strong>([\s\S]*?)<\/strong>$/)
+        if (strongMatch) {
+          elements[i + 1] = { type: "heading", level: 3, text: strongMatch[1] }
+        }
+      }
+    }
+    return elements
   }
 
   /**
@@ -531,8 +564,10 @@ class GhostHtmlParser {
     const text = html
       .replace(/<\/?h[1-6][^>]*>/gi, "")
       .replace(/<\/?strong>/gi, "")
-      .replace(/&lt;/g, "\u3008")
-      .replace(/&gt;/g, "\u3009")
+      .replace(/&lt;/g, "\u2018")
+      .replace(/&gt;/g, "\u2019")
+      .replace(/</g, "\u2018")
+      .replace(/>/g, "\u2019")
       .trim()
     return { type: "heading", level, text }
   }

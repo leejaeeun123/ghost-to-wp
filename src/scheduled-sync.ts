@@ -80,7 +80,7 @@ export const runScheduledSync = async (): Promise<SyncResult[]> => {
         continue
       }
 
-      const result = await syncOnePost(post, "draft")
+      const result = await syncOnePost(post, "future")
       results.push(result)
 
       if (result.status === "created") {

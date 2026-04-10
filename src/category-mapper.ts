@@ -27,6 +27,7 @@ const CATEGORY_MAP: CategoryMapping[] = [
 
 /** 공통 카테고리: 모든 포스트에 자동 추가 */
 const MAGAZINE_CATEGORY_ID = 25
+const GRAY_CATEGORY_ID = 78
 
 /**
  * Ghost 태그 배열 → WP 카테고리 ID 배열로 변환
@@ -49,6 +50,44 @@ export const mapCategories = (ghostTags: GhostTag[]): number[] => {
   }
 
   return [...categoryIds]
+}
+
+/**
+ * Notion 카테고리 기반 WP 카테고리 매핑 + primary 카테고리
+ *
+ * - 일반: 매거진 + 큐레이션 + Notion 카테고리
+ * - 그레이: 매거진 + 그레이 (큐레이션 제외)
+ * - primary = Notion 첫 번째 카테고리 (순서 기준)
+ */
+export const mapCategoriesFromNotion = (
+  notionCategories: string[]
+): { categoryIds: number[]; primaryId: number } => {
+  const isGray = notionCategories.some(
+    (c) => c === "그레이" || c.toUpperCase() === "GRAY"
+  )
+
+  if (isGray) {
+    return { categoryIds: [MAGAZINE_CATEGORY_ID, GRAY_CATEGORY_ID], primaryId: GRAY_CATEGORY_ID }
+  }
+
+  const categoryIds = new Set<number>([MAGAZINE_CATEGORY_ID, CURATION_CATEGORY_ID])
+  let primaryId = CURATION_CATEGORY_ID
+
+  for (let i = 0; i < notionCategories.length; i++) {
+    const catName = notionCategories[i]
+    const mapping = CATEGORY_MAP.find(
+      (m) =>
+        m.wpCategoryName === catName ||
+        m.ghostTag === catName ||
+        m.ghostTag.toLowerCase() === catName.toLowerCase()
+    )
+    if (mapping) {
+      categoryIds.add(mapping.wpCategoryId)
+      if (i === 0) primaryId = mapping.wpCategoryId
+    }
+  }
+
+  return { categoryIds: [...categoryIds], primaryId }
 }
 
 /**

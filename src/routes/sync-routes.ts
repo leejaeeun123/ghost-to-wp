@@ -4,7 +4,7 @@ import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoa
 import { transformGhostToWp } from "../html-transformer.js"
 import { replaceImageUrls, uploadFeatureImage } from "../image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
-import { mapCategories, extractWpTags } from "../category-mapper.js"
+import { mapCategories, extractWpTags, mapCategoriesFromNotion } from "../category-mapper.js"
 import { generateEnglishSlug } from "../slug-generator.js"
 import { findNotionArticle } from "../notion-client.js"
 import type { GhostPost, SyncResult } from "../types.js"
@@ -62,16 +62,36 @@ export const syncOnePost = async (
     return { ...base, status: "skipped_duplicate", reason: `WP ID: ${existing.id}` }
   }
 
-  const isGray = post.tags.some((t) => t.name === "그레이" || t.slug === "gray")
+  // Notion 아티클 로드맵 조회 (바이럴멘트, 발행일, 카테고리)
+  const notionArticle = await findNotionArticle(post.slug)
+  if (notionArticle) {
+    console.log(`  Notion 매칭: "${notionArticle.title}" (${notionArticle.status})`)
+  }
+
+  // 그레이 판별: Notion 카테고리 우선, Ghost 태그 폴백
+  const isGray = notionArticle?.categories.some((c) => c === "그레이" || c.toUpperCase() === "GRAY")
+    ?? post.tags.some((t) => t.name === "그레이" || t.name.toUpperCase() === "GRAY" || t.slug.startsWith("gray"))
 
   const wpHtml = transformGhostToWp(post.html, wpAuthorId ?? undefined)
   const { html: finalHtml } = await replaceImageUrls(wpHtml, false)
   const featuredMediaId = await uploadFeatureImage(post.feature_image, false, isGray)
-  const categories = mapCategories(post.tags)
-  const wpTagNames = extractWpTags(post.tags)
+
+  // 카테고리: Notion 기준 (매거진+큐레이션+카테고리), Ghost 폴백
+  const { categoryIds: categories, primaryId: primaryCategoryId } = notionArticle?.categories.length
+    ? mapCategoriesFromNotion(notionArticle.categories)
+    : { categoryIds: mapCategories(post.tags), primaryId: 0 }
+
+  // 태그: Ghost 태그 + Notion 테마/키워드/기타
+  const ghostTagNames = extractWpTags(post.tags)
+  const notionTagNames = [
+    ...(notionArticle?.themes ?? []),
+    ...(notionArticle?.keywords ?? []),
+    ...(notionArticle?.extras ?? []),
+  ]
+  const allTagNames = [...new Set([...ghostTagNames, ...notionTagNames])]
 
   const wpTagIds: number[] = []
-  for (const name of wpTagNames) {
+  for (const name of allTagNames) {
     wpTagIds.push(await findOrCreateWpTag(name))
   }
 
@@ -81,16 +101,12 @@ export const syncOnePost = async (
 
   const englishSlug = await generateEnglishSlug(post.title, post.slug)
 
-  // Notion 아티클 로드맵 조회 (바이럴멘트, 발행일)
-  const notionArticle = await findNotionArticle(post.slug)
-  if (notionArticle) {
-    console.log(`  Notion 매칭: "${notionArticle.title}" (${notionArticle.status})`)
-  }
-
   // 발행일: Notion 발행일 > 스케줄 > 직전 금요일
-  const wpDate = status === "future" && scheduleDate
+  const rawDate = status === "future" && scheduleDate
     ? scheduleDate
     : notionArticle?.publishDate ?? getPreviousFriday(post.published_at)
+  // Notion 날짜("2026-04-13")는 시간이 없어 WP가 거부 → KST 오전 7:50 발행
+  const wpDate = rawDate.includes("T") ? rawDate : rawDate + "T07:50:00"
 
   const wpPost = await createWpPost({
     title: splitToTwoLines(cleanText(post.title)),
@@ -106,17 +122,37 @@ export const syncOnePost = async (
   })
 
   // SEO + 소셜 메타 설정
-  // 메타 설명: Notion 바이럴멘트 > Ghost excerpt > 빈값
-  const metaDesc = notionArticle?.viralMent
-    ? `${cleanText(notionArticle.viralMent)} |`
-    : post.custom_excerpt ? `${cleanText(post.custom_excerpt)} |` : ""
-  const primaryTag = post.tags[0]?.name ?? ""
+  // 초점 키프레이즈: 제목에 포함된 키워드 우선
+  const titleClean = cleanText(post.title)
+  const allKeywords = [...(notionArticle?.keywords ?? []), ...(notionArticle?.themes ?? []), ...post.tags.map((t) => t.name)]
+  const focusKw = allKeywords.find((kw) => titleClean.includes(kw)) ?? allKeywords[0] ?? ""
+
+  // 메타 설명: 부제목 | 바이럴멘트 (최대 140자)
+  const subtitle = notionArticle?.subtitle ? cleanText(notionArticle.subtitle) : (post.custom_excerpt ? cleanText(post.custom_excerpt) : "")
+  const viralMent = notionArticle?.viralMent ? cleanText(notionArticle.viralMent) : ""
+  let metaDesc = ""
+  if (subtitle && viralMent) {
+    const full = `${subtitle} | ${viralMent}`
+    if (full.length <= 140) {
+      metaDesc = full
+    } else {
+      const prefix = `${subtitle} | `
+      const maxLen = 140 - prefix.length
+      const truncated = viralMent.slice(0, maxLen)
+      const cutPoint = Math.max(truncated.lastIndexOf("."), truncated.lastIndexOf(","), truncated.lastIndexOf(" "))
+      metaDesc = prefix + (cutPoint > 0 ? truncated.slice(0, cutPoint) : truncated)
+    }
+  } else {
+    metaDesc = subtitle || viralMent
+  }
+
   const socialTitle = "%%title%% %%sep%% %%sitename%% %%primary_category%%"
   const featureImageUrl = post.feature_image ?? ""
 
   await setYoastMeta(wpPost.id, {
-    _yoast_wpseo_focuskw: primaryTag,
+    _yoast_wpseo_focuskw: focusKw,
     _yoast_wpseo_metadesc: metaDesc,
+    _yoast_wpseo_primary_category: String(primaryCategoryId),
     "_yoast_wpseo_opengraph-image": featureImageUrl,
     "_yoast_wpseo_opengraph-title": socialTitle,
     "_yoast_wpseo_opengraph-description": metaDesc,
