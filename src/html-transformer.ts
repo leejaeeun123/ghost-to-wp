@@ -62,11 +62,32 @@ const splitH2AtMiddleSpace = (text: string): string => {
 const wpHeadingH3 = (text: string): string =>
   `<!-- wp:heading {"level":3} -->\n<h3 class="wp-block-heading">${text}</h3>\n<!-- /wp:heading -->`
 
+const wpHeadingH4 = (text: string): string =>
+  `<!-- wp:heading {"level":4} -->\n<h4 class="wp-block-heading">${text}</h4>\n<!-- /wp:heading -->`
+
 const wpImage = (src: string, width: number, caption?: string): string => {
   const captionHtml = caption
-    ? `<figcaption class="wp-element-caption"><sup>${caption}</sup></figcaption>`
+    ? `<figcaption><sup>${caption}</sup></figcaption>`
     : ""
-  return `<!-- wp:image {"align":"center","sizeSlug":"full","linkDestination":"none"} -->\n<figure class="wp-block-image aligncenter size-full is-resized"><img decoding="async" src="${src}" style="width:${width}px"/>${captionHtml}</figure>\n<!-- /wp:image -->`
+  return [
+    `<!-- wp:image {"align":"center","sizeSlug":"full","width":${width},"linkDestination":"none"} -->`,
+    `<figure class="wp-block-image aligncenter size-full is-resized"><img decoding="async" src="${src}" alt="" style="width:${width}px"/>${captionHtml}</figure>`,
+    `<!-- /wp:image -->`,
+  ].join("\n")
+}
+
+/** 캡션 정규화: "출처" 포함 시 "이미지 출처 : ..." prefix 강제, < > → ' ' 치환 */
+const normalizeCaption = (raw: string): string => {
+  const cleaned = raw.replace(/[<>]/g, "'").trim()
+  if (!cleaned) return cleaned
+  if (/출처/.test(cleaned)) {
+    if (cleaned.startsWith("이미지 출처")) return cleaned
+    const stripped = cleaned
+      .replace(/^이미지\s*/, "")
+      .replace(/^출처\s*[:：]?\s*/, "")
+    return `이미지 출처 : ${stripped}`
+  }
+  return cleaned
 }
 
 const wpQuote = (text: string, source?: string): string => {
@@ -172,26 +193,32 @@ const wpInflowLinkGroup = (links: InflowLinkInfo[]): string => {
 
 type ColumnImage = { src: string; caption?: string }
 
+/**
+ * 이미지 컬럼 내부 단일 이미지 (패턴 core/block/20329 구조)
+ *
+ * - id 는 0 placeholder → image-handler.enrichImageBlocks에서 실제 WP 미디어 ID로 치환
+ * - img class="wp-image-{id}" 도 enrich 단계에서 주입
+ */
 const wpColumnImage = (img: ColumnImage): string => {
   const captionHtml = img.caption
-    ? `<figcaption><sup>${img.caption}</sup></figcaption>`
+    ? `<figcaption class="wp-element-caption"><sup>${img.caption}</sup></figcaption>`
     : ""
   return [
-    `  <!-- wp:column -->`,
-    `  <div class="wp-block-column"><!-- wp:image {"align":"center","sizeSlug":"full","width":467} -->`,
-    `    <figure class="wp-block-image aligncenter size-full is-resized"><img src="${img.src}" alt="" style="width:467px"/>${captionHtml}</figure>`,
-    `  <!-- /wp:image --></div>`,
-    `  <!-- /wp:column -->`,
+    `<div class="wp-block-column"><!-- wp:image {"id":0,"sizeSlug":"full","linkDestination":"none","align":"center"} -->`,
+    `<figure class="wp-block-image aligncenter size-full"><img src="${img.src}" alt=""/>${captionHtml}</figure>`,
+    `<!-- /wp:image --></div>`,
   ].join("\n")
 }
 
 const wpImageColumns = (left: ColumnImage, right: ColumnImage): string => [
-  `<!-- wp:columns {"isStackedOnMobile":true} -->`,
-  `<div class="wp-block-columns is-not-stacked-on-mobile">`,
+  `<!-- wp:columns {"metadata":{"categories":[],"patternName":"core/block/20329","name":"이미지 2개 컬럼"}} -->`,
+  `<div class="wp-block-columns"><!-- wp:column -->`,
   wpColumnImage(left),
+  `<!-- /wp:column -->`,
   ``,
+  `<!-- wp:column -->`,
   wpColumnImage(right),
-  `</div>`,
+  `<!-- /wp:column --></div>`,
   `<!-- /wp:columns -->`,
 ].join("\n")
 
@@ -292,7 +319,7 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
             if (blocks[blocks.length - 1] === ref(BLOCK.DIVIDER)) blocks.pop()
             blocks.push(spacer100())
           } else {
-            // 직전 블록이 구분선이면(hr 뒤 등) 자체 구분선 생략
+            // 직전 블록이 구분선이면(hr 뒤 등) 자체 구분선 생략, 100px만 추가
             let hasRecentDivider = false
             for (let j = blocks.length - 1; j >= 0; j--) {
               if (isSpacerBlock(blocks[j])) continue
@@ -300,7 +327,7 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
               break
             }
             if (hasRecentDivider) {
-              blocks.push(ref(BLOCK.SPACE_40))
+              blocks.push(spacer100())
             } else {
               blocks.push(ref(BLOCK.SPACE_40))
               blocks.push(ref(BLOCK.DIVIDER))
@@ -310,11 +337,15 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
           blocks.push(wpHeadingH2(el.text))
           blocks.push(ref(BLOCK.SPACE_40))
           h3CountInSection = 0
-        } else {
+        } else if (el.level === 3) {
           h3CountInSection++
-          // H3: 첫번째 40px, 두번째부터 70px (WP #33050 패턴)
+          // H3 연속 2개 이상이면 다음 제목 위 70px, 첫 H3은 40px
           blocks.push(h3CountInSection >= 2 ? ref(BLOCK.SPACE_70) : ref(BLOCK.SPACE_40))
           blocks.push(wpHeadingH3(el.text))
+        } else {
+          // level 4 (또는 그 이상)
+          blocks.push(ref(BLOCK.SPACE_40))
+          blocks.push(wpHeadingH4(el.text))
         }
         lastWasInflowLink = false
         break
@@ -550,7 +581,11 @@ class GhostHtmlParser {
       if (parsed) elements.push(parsed)
     }
 
-    return this.convertBoldAfterH2ToH3(this.normalizeHeadings(elements))
+    // 빈 paragraph 제거 (이미지 사이에 끼어 컬럼 블록 합치기 방해하는 것 방지)
+    const nonEmpty = elements.filter(
+      (el) => !(el.type === "paragraph" && !el.html.replace(/<[^>]+>/g, "").trim())
+    )
+    return this.convertBoldAfterH2ToH3(this.normalizeHeadings(nonEmpty))
   }
 
   /**
@@ -572,39 +607,48 @@ class GhostHtmlParser {
   }
 
   /**
-   * 헤딩 순서 정규화
-   * - h3 → h2 연속 시 h2 → h3으로 교환
-   * - hr 뒤 첫 헤딩은 반드시 h2
+   * 헤딩 위계 정규화 (명세: h2~h4만 허용)
+   *
+   * - 사용된 heading level을 수집 → 가장 높은(level 값 작은) 것을 h2,
+   *   그 다음을 h3, 그 다음을 h4로 강제 변환
+   * - 이하 depth는 모두 h4로 쳐냄
+   * - hr 뒤 첫 heading은 여전히 h2로 승격 (섹션 시작 보장)
    */
   private normalizeHeadings(elements: ParsedElement[]): ParsedElement[] {
-    let afterHr = false
+    // 1) 사용된 level 수집 + 매핑 테이블 생성
+    const usedLevels = [
+      ...new Set(
+        elements.filter((e) => e.type === "heading").map((e) => (e as { level: number }).level)
+      ),
+    ].sort((a, b) => a - b)
+    const levelMap = new Map<number, number>()
+    usedLevels.forEach((lv, idx) => levelMap.set(lv, Math.min(2 + idx, 4)))
 
+    // 2) 모든 heading level을 매핑 테이블로 치환
     for (let i = 0; i < elements.length; i++) {
       const el = elements[i]
+      if (el.type === "heading") {
+        const mapped = levelMap.get(el.level) ?? Math.min(Math.max(el.level, 2), 4)
+        elements[i] = { type: "heading", level: mapped, text: el.text }
+      }
+    }
 
+    // 3) hr 뒤 첫 heading은 h2로 승격
+    let afterHr = false
+    for (let i = 0; i < elements.length; i++) {
+      const el = elements[i]
       if (el.type === "hr") {
         afterHr = true
         continue
       }
-
       if (el.type !== "heading") {
         afterHr = false
         continue
       }
-
-      // hr 뒤 첫 헤딩은 h2로 승격
       if (afterHr && el.level > 2) {
         elements[i] = { type: "heading", level: 2, text: el.text }
       }
       afterHr = false
-
-      // 연속 헤딩에서 h3 → h2 순서면 교환
-      const next = elements[i + 1]
-      if (next?.type === "heading" && el.level > next.level) {
-        const tmpLevel = el.level
-        elements[i] = { type: "heading", level: next.level, text: el.text }
-        elements[i + 1] = { type: "heading", level: tmpLevel, text: next.text }
-      }
     }
 
     return elements
@@ -633,6 +677,9 @@ class GhostHtmlParser {
 
   private parseFragment(html: string): ParsedElement | null {
     if (/^<h[1-6]\b/i.test(html)) return this.parseHeading(html)
+    // Ghost 갤러리 카드(figure.kg-card.kg-gallery-card)는 figure로 래핑되지만
+    // 내부에 다수 이미지가 있으므로 parseFigure 대신 parseGallery로 위임
+    if (/^<figure\b[^>]*class="[^"]*kg-gallery-card/i.test(html)) return this.parseGallery(html)
     if (/^<figure\b/i.test(html)) return this.parseFigure(html)
     if (/^<blockquote\b/i.test(html)) return this.parseQuote(html)
     if (/^<hr\s*\/?>/i.test(html)) return { type: "hr" }
@@ -673,9 +720,10 @@ class GhostHtmlParser {
       const ytMatch = iframeSrc.match(/youtube\.com\/embed\/([^?"&]+)/)
       if (ytMatch) {
         const url = `https://www.youtube.com/watch?v=${ytMatch[1]}`
-        const caption = captionMatch
+        const rawCap = captionMatch
           ? captionMatch[1].replace(/<[^>]+>/g, "").replace(/&lt;/g, "'").replace(/&gt;/g, "'").trim()
-          : undefined
+          : ""
+        const caption = rawCap ? normalizeCaption(rawCap) : undefined
         return { type: "youtube", url, caption }
       }
       return { type: "embed", html }
@@ -690,14 +738,16 @@ class GhostHtmlParser {
     const imgWidth = widthMatch ? parseInt(widthMatch[1]) : 0
     const imgHeight = heightMatch ? parseInt(heightMatch[1]) : 0
 
+    // 가로형/정방형 → 700, 세로형 → 467
     let displayWidth = 700
     if (imgWidth > 0 && imgHeight > 0) {
       displayWidth = imgHeight > imgWidth ? 467 : 700
     }
 
-    const caption = captionMatch
+    const rawCap = captionMatch
       ? captionMatch[1].replace(/<[^>]+>/g, "").replace(/&lt;/g, "'").replace(/&gt;/g, "'").trim()
-      : undefined
+      : ""
+    const caption = rawCap ? normalizeCaption(rawCap) : undefined
 
     return { type: "image", src, width: displayWidth, caption }
   }
@@ -762,6 +812,15 @@ class GhostHtmlParser {
       const w = wm ? parseInt(wm[1]) : 0
       const h = hm ? parseInt(hm[1]) : 0
       images.push({ src, width: h > w ? 467 : 700 })
+    }
+    // Ghost 갤러리 카드는 전체에 대해 단일 figcaption을 가짐 → 모든 이미지에 복제
+    const captionMatch = html.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i)
+    if (captionMatch && images.length > 0) {
+      const rawCap = captionMatch[1].replace(/<[^>]+>/g, "").replace(/&lt;/g, "'").replace(/&gt;/g, "'").trim()
+      if (rawCap) {
+        const cap = normalizeCaption(rawCap)
+        for (const img of images) img.caption = cap
+      }
     }
     if (images.length === 0) return { type: "html", html }
     return { type: "gallery", images }
