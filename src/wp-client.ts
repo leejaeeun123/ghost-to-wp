@@ -87,6 +87,42 @@ export const createWpPost = async (params: {
   })
 }
 
+/** _embed 포함 WP 포스트 (블로그 자동화용 — 작성자/대표이미지/카테고리/태그 inline) */
+export interface WpPostFull {
+  id: number
+  link: string
+  slug: string
+  date: string
+  status: string
+  title: { rendered: string }
+  content: { rendered: string }
+  excerpt: { rendered: string }
+  categories: number[]
+  tags: number[]
+  featured_media: number
+  author: number
+  _embedded?: {
+    author?: Array<{ id: number; name: string }>
+    "wp:featuredmedia"?: Array<{ id: number; source_url: string }>
+    "wp:term"?: Array<Array<{ id: number; name: string; taxonomy: string }>>
+  }
+}
+
+/** 발행일 범위로 WP 포스트 조회 (publish + future, _embed 포함) */
+export const fetchWpPostsByDateRange = async (
+  afterIso: string,
+  beforeIso: string
+): Promise<WpPostFull[]> => {
+  const params = new URLSearchParams({
+    after: afterIso,
+    before: beforeIso,
+    per_page: "100",
+    status: "publish,future",
+    _embed: "true",
+  })
+  return wpFetch<WpPostFull[]>(`posts?${params.toString()}`)
+}
+
 /** WP 미디어 업로드 (이미지) */
 export const uploadWpMedia = async (
   imageBuffer: Buffer,
