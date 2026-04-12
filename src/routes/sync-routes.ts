@@ -14,6 +14,25 @@ export const syncRoutes = Router()
 const cleanText = (text: string): string =>
   text.replace(/&lt;/g, "\u2018").replace(/&gt;/g, "\u2019").replace(/<br\s*\/?>/gi, "<<BR>>").replace(/</g, "\u2018").replace(/>/g, "\u2019").replace(/<<BR>>/g, "<br>")
 
+/** 이모지/픽토그램 제거 */
+const stripEmoji = (text: string): string =>
+  text.replace(/\p{Extended_Pictographic}/gu, "").replace(/\s+/g, " ").trim()
+
+/** maxLen 이내에서 마지막 완성 문장까지 자름 */
+const truncateToLastSentence = (text: string, maxLen: number): string => {
+  if (text.length <= maxLen) return text
+  const sliced = text.slice(0, maxLen)
+  const enders = [".", "!", "?", "。", "…", "”", "\""]
+  let lastEnd = -1
+  for (const e of enders) {
+    const idx = sliced.lastIndexOf(e)
+    if (idx > lastEnd) lastEnd = idx
+  }
+  if (lastEnd > 0) return sliced.slice(0, lastEnd + 1).trim()
+  const lastSpace = sliced.lastIndexOf(" ")
+  return (lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced).trim()
+}
+
 /** 텍스트를 중간 공백 기준으로 두 줄로 분리 (<br> 삽입) */
 const splitToTwoLines = (text: string): string => {
   if (!text || text.includes("<br")) return text
@@ -128,22 +147,17 @@ export const syncOnePost = async (
   const focusKw = allKeywords.find((kw) => titleClean.includes(kw)) ?? allKeywords[0] ?? ""
 
   // 메타 설명: 부제목 | 바이럴멘트 (최대 140자)
+  // - 바이럴멘트의 이모지는 삭제
+  // - 글자 수 초과 시 바이럴멘트의 마지막 완성 문장까지 다듬어서 자름
   const subtitle = notionArticle?.subtitle ? cleanText(notionArticle.subtitle) : (post.custom_excerpt ? cleanText(post.custom_excerpt) : "")
-  const viralMent = notionArticle?.viralMent ? cleanText(notionArticle.viralMent) : ""
+  const viralRaw = notionArticle?.viralMent ? cleanText(notionArticle.viralMent) : ""
+  const viralMent = stripEmoji(viralRaw)
   let metaDesc = ""
   if (subtitle && viralMent) {
     const full = `${subtitle} | ${viralMent}`
-    if (full.length <= 140) {
-      metaDesc = full
-    } else {
-      const prefix = `${subtitle} | `
-      const maxLen = 140 - prefix.length
-      const truncated = viralMent.slice(0, maxLen)
-      const cutPoint = Math.max(truncated.lastIndexOf("."), truncated.lastIndexOf(","), truncated.lastIndexOf(" "))
-      metaDesc = prefix + (cutPoint > 0 ? truncated.slice(0, cutPoint) : truncated)
-    }
+    metaDesc = truncateToLastSentence(full, 140)
   } else {
-    metaDesc = subtitle || viralMent
+    metaDesc = truncateToLastSentence(subtitle || viralMent, 140)
   }
 
   const socialTitle = "%%title%% %%sep%% %%sitename%% %%primary_category%%"

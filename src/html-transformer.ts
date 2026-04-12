@@ -70,16 +70,12 @@ const wpImage = (src: string, width: number, caption?: string): string => {
 }
 
 const wpQuote = (text: string, source?: string): string => {
-  const sourceHtml = source ? `<br><br><em>${source}</em>` : ""
+  const sourceHtml = source ? `<br><br>_${source}` : ""
   return [
     `<!-- wp:quote -->`,
-    `<blockquote class="wp-block-quote">`,
-    `<!-- wp:paragraph {"style":{"elements":{"link":{"color":{"text":"#9d9d9d"}}},"color":{"text":"#9d9d9d"}}} -->`,
-    `<p class="has-text-color has-link-color" style="color:#9d9d9d">`,
-    `<em>"${text}"</em>${sourceHtml}`,
-    `</p>`,
-    `<!-- /wp:paragraph -->`,
-    `</blockquote>`,
+    `<blockquote class="wp-block-quote"><!-- wp:paragraph {"style":{"elements":{"link":{"color":{"text":"#9d9d9d"}}},"color":{"text":"#9d9d9d"}}} -->`,
+    `<p class="has-text-color has-link-color" style="color:#9d9d9d"><em>"${text}"${sourceHtml}</em></p>`,
+    `<!-- /wp:paragraph --></blockquote>`,
     `<!-- /wp:quote -->`,
   ].join("\n")
 }
@@ -109,9 +105,9 @@ const wpInflowLink = (href: string, text: string): string => [
 /** 유입링크 분류 정보 */
 type InflowLinkInfo = { href: string; text: string; sortOrder: number }
 
-/** 행동 유도 텍스트 판별 (~가기, ~보기 등) */
+/** 행동 유도 텍스트 판별 (~하러 가기/보기, 구매/신청/확인 등) */
 const isActionText = (text: string): boolean =>
-  /(?:가기|보기|보러|읽으러|시청하러|플레이하러)\s*$/.test(text)
+  /(?:하러\s*(?:가기|보기)|가기|보기|보러|읽으러|시청하러|플레이하러|확인하러|신청하러|구매하러)\s*$/.test(text)
 
 /**
  * 유입링크 분류 + WP 포맷팅
@@ -174,19 +170,28 @@ const wpInflowLinkGroup = (links: InflowLinkInfo[]): string => {
   ].join("\n")
 }
 
-const wpImageColumns = (src1: string, src2: string): string => [
-  `<!-- wp:columns {"metadata":{"categories":[],"patternName":"core/block/20329","name":"이미지 2개 컬럼"}} -->`,
-  `<div class="wp-block-columns"><!-- wp:column -->`,
-  `<div class="wp-block-column"><!-- wp:image {"align":"center"} -->`,
-  `<figure class="wp-block-image aligncenter"><img src="${src1}" alt=""/></figure>`,
-  `<!-- /wp:image --></div>`,
-  `<!-- /wp:column -->`,
+type ColumnImage = { src: string; caption?: string }
+
+const wpColumnImage = (img: ColumnImage): string => {
+  const captionHtml = img.caption
+    ? `<figcaption><sup>${img.caption}</sup></figcaption>`
+    : ""
+  return [
+    `  <!-- wp:column -->`,
+    `  <div class="wp-block-column"><!-- wp:image {"align":"center","sizeSlug":"full","width":467} -->`,
+    `    <figure class="wp-block-image aligncenter size-full is-resized"><img src="${img.src}" alt="" style="width:467px"/>${captionHtml}</figure>`,
+    `  <!-- /wp:image --></div>`,
+    `  <!-- /wp:column -->`,
+  ].join("\n")
+}
+
+const wpImageColumns = (left: ColumnImage, right: ColumnImage): string => [
+  `<!-- wp:columns {"isStackedOnMobile":true} -->`,
+  `<div class="wp-block-columns is-not-stacked-on-mobile">`,
+  wpColumnImage(left),
   ``,
-  `<!-- wp:column -->`,
-  `<div class="wp-block-column"><!-- wp:image {"align":"center"} -->`,
-  `<figure class="wp-block-image aligncenter"><img src="${src2}" alt=""/></figure>`,
-  `<!-- /wp:image --></div>`,
-  `<!-- /wp:column --></div>`,
+  wpColumnImage(right),
+  `</div>`,
   `<!-- /wp:columns -->`,
 ].join("\n")
 
@@ -209,10 +214,51 @@ const wpYouTubeEmbed = (url: string, caption?: string): string => {
  * @param ghostHtml - Ghost CMS HTML 원문
  * @param wpAuthorId - WP 사용자 ID (에디터 카드 숏코드 주입용)
  */
+/**
+ * [참고문헌]/[참고자료] 섹션 추출
+ *
+ * 원문에 해당 태그가 나오면 삭제하고, 뒤따르는 리스트 또는 연속 문단을
+ * references 배열로 분리. 이후 결문 뒤 에디터카드 앞에 삽입.
+ */
+const extractReferences = (
+  elements: ParsedElement[]
+): { cleaned: ParsedElement[]; references: string[] } => {
+  const references: string[] = []
+  const cleaned: ParsedElement[] = []
+  let inRefs = false
+
+  for (const el of elements) {
+    if (
+      !inRefs &&
+      el.type === "paragraph" &&
+      /\[?\s*참고(?:문헌|자료)\s*\]?/.test(el.html.replace(/<[^>]+>/g, ""))
+    ) {
+      inRefs = true
+      continue
+    }
+    if (inRefs) {
+      if (el.type === "list") {
+        references.push(...el.items)
+        continue
+      }
+      if (el.type === "paragraph" && el.html.trim()) {
+        references.push(el.html)
+        continue
+      }
+      // 다른 요소(image/heading/hr 등)가 오면 참고문헌 종료
+      inRefs = false
+    }
+    cleaned.push(el)
+  }
+
+  return { cleaned, references }
+}
+
 export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): string => {
   const blocks: string[] = []
   const parser = new GhostHtmlParser(ghostHtml)
-  const elements = parser.parse()
+  const parsed = parser.parse()
+  const { cleaned: elements, references } = extractReferences(parsed)
 
   let lastWasInflowLink = false
   let h3CountInSection = 0
@@ -241,19 +287,25 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
     switch (el.type) {
       case "heading": {
         if (el.level <= 2) {
-          // 직전 블록이 구분선이면 H2 자체 구분선 생략 (유입링크/hr 뒤)
-          let hasRecentDivider = false
-          for (let j = blocks.length - 1; j >= 0; j--) {
-            if (isSpacerBlock(blocks[j])) continue
-            if (blocks[j] === ref(BLOCK.DIVIDER)) hasRecentDivider = true
-            break
-          }
-          if (hasRecentDivider) {
-            blocks.push(ref(BLOCK.SPACE_40))
-          } else {
-            blocks.push(ref(BLOCK.SPACE_40))
-            blocks.push(ref(BLOCK.DIVIDER))
+          if (lastWasInflowLink) {
+            // 유입링크 바로 뒤 h2: 마지막 divider 제거 + 100px 스페이서
+            if (blocks[blocks.length - 1] === ref(BLOCK.DIVIDER)) blocks.pop()
             blocks.push(spacer100())
+          } else {
+            // 직전 블록이 구분선이면(hr 뒤 등) 자체 구분선 생략
+            let hasRecentDivider = false
+            for (let j = blocks.length - 1; j >= 0; j--) {
+              if (isSpacerBlock(blocks[j])) continue
+              if (blocks[j] === ref(BLOCK.DIVIDER)) hasRecentDivider = true
+              break
+            }
+            if (hasRecentDivider) {
+              blocks.push(ref(BLOCK.SPACE_40))
+            } else {
+              blocks.push(ref(BLOCK.SPACE_40))
+              blocks.push(ref(BLOCK.DIVIDER))
+              blocks.push(spacer100())
+            }
           }
           blocks.push(wpHeadingH2(el.text))
           blocks.push(ref(BLOCK.SPACE_40))
@@ -269,6 +321,11 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       }
 
       case "paragraph": {
+        if (lastWasInflowLink) {
+          // 유입링크 바로 뒤 문단(결문 등): 마지막 divider 제거 + 100px 스페이서
+          if (blocks[blocks.length - 1] === ref(BLOCK.DIVIDER)) blocks.pop()
+          blocks.push(spacer100())
+        }
         blocks.push(wpParagraph(`<p>${el.html}</p>`))
         if (el.links && el.links.length > 0) {
           const inflowLinks = el.links.map((l) => classifyInflowLink(l.href, l.text))
@@ -288,13 +345,18 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
         const nextEl = elements[i + 1]
         if (nextEl?.type === "image") {
           blocks.push(ref(BLOCK.SPACE_40))
-          blocks.push(wpImageColumns(el.src, nextEl.src))
+          blocks.push(wpImageColumns(
+            { src: el.src, caption: el.caption },
+            { src: nextEl.src, caption: nextEl.caption }
+          ))
+          blocks.push(ref(BLOCK.SPACE_40))
           i++
           lastWasInflowLink = false
           break
         }
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpImage(el.src, el.width, el.caption))
+        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -302,6 +364,7 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       case "quote": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpQuote(el.text, el.source))
+        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -354,11 +417,15 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
           const img1 = el.images[j]
           const img2 = el.images[j + 1]
           if (img2) {
-            blocks.push(wpImageColumns(img1.src, img2.src))
+            blocks.push(wpImageColumns(
+              { src: img1.src, caption: img1.caption },
+              { src: img2.src, caption: img2.caption }
+            ))
           } else {
             blocks.push(wpImage(img1.src, img1.width, img1.caption))
           }
         }
+        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -381,8 +448,17 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
   // 루프 종료 후 남은 유입링크 플러시
   flushInflow()
 
-  // 아티클 종결 ��퀀스
-  if (!lastWasInflowLink) {
+  // 아티클 종결 시퀀스
+  // - 참고문헌 있음: (결문뒤)40 → 리스트 → 40 → divider → 20 → shortcode → 20 → tail
+  // - 참고문헌 없음 + 결문종료: 40 → divider → 20 → shortcode → 20 → tail
+  // - 유입링크로 종료: 유입링크의 마지막 divider 재활용 → 20 → shortcode → 20 → tail
+  if (references.length > 0) {
+    // 유입링크로 끝난 경우에도 참고문헌 앞에는 여백 필요 (유입링크 divider는 유지)
+    blocks.push(ref(BLOCK.SPACE_40))
+    blocks.push(wpList(references))
+    blocks.push(ref(BLOCK.SPACE_40))
+    blocks.push(ref(BLOCK.DIVIDER))
+  } else if (!lastWasInflowLink) {
     blocks.push(ref(BLOCK.SPACE_40))
     blocks.push(ref(BLOCK.DIVIDER))
   }
@@ -392,7 +468,7 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
   const shortcodeContent = templateId
     ? `[elementor-template id="${templateId}"]`
     : ""
-  blocks.push(`<!-- wp:shortcode -->\n${shortcodeContent}\n<!-- /wp:shortcode -->`)
+  blocks.push(`<!-- wp:shortcode -->${shortcodeContent}<!-- /wp:shortcode -->`)
 
   blocks.push(ref(BLOCK.SPACE_20))
   blocks.push(ref(BLOCK.EDITOR_TAIL))
@@ -535,8 +611,23 @@ class GhostHtmlParser {
   }
 
   private splitIntoFragments(): string[] {
-    return this.html
-      .split(/(?=<(?:h[1-6]|figure|blockquote|hr|ul|ol|div class="kg-))|(?<=<\/(?:h[1-6]|figure|blockquote|ul|ol)>)|(?<=<hr\s*\/?>)/i)
+    // blockquote/figure 내부는 split 방지용으로 placeholder 치환
+    // (내부 <p> 태그가 독립 fragment로 분리되는 문제 방지)
+    const placeholders: string[] = []
+    const protect = (src: string, pattern: RegExp): string =>
+      src.replace(pattern, (m) => {
+        placeholders.push(m)
+        return `\u0000P${placeholders.length - 1}\u0000`
+      })
+    let working = protect(this.html, /<blockquote\b[\s\S]*?<\/blockquote>/gi)
+    working = protect(working, /<figure\b[\s\S]*?<\/figure>/gi)
+
+    const restore = (s: string): string =>
+      s.replace(/\u0000P(\d+)\u0000/g, (_, idx) => placeholders[+idx] ?? "")
+
+    return working
+      .split(/(?=<(?:h[1-6]|p|hr|ul|ol|div class="kg-))|(?<=<\/(?:h[1-6]|p|ul|ol)>)|(?<=<hr\s*\/?>)|(?=\u0000P\d+\u0000)|(?<=\u0000P\d+\u0000)/i)
+      .map(restore)
       .filter((f) => f.trim().length > 0)
   }
 
@@ -561,13 +652,12 @@ class GhostHtmlParser {
   private parseHeading(html: string): ParsedElement {
     const levelMatch = html.match(/^<h(\d)/i)
     const level = levelMatch ? parseInt(levelMatch[1]) : 2
+    // 본문 헤딩에서는 < > 그대로 유지 (엔티티만 복원)
     const text = html
       .replace(/<\/?h[1-6][^>]*>/gi, "")
       .replace(/<\/?strong>/gi, "")
-      .replace(/&lt;/g, "\u2018")
-      .replace(/&gt;/g, "\u2019")
-      .replace(/</g, "\u2018")
-      .replace(/>/g, "\u2019")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
       .trim()
     return { type: "heading", level, text }
   }

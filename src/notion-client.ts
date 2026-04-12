@@ -80,7 +80,7 @@ const extractArticle = (props: Record<string, any>): NotionArticle => ({
   squareCmsUrl: props["Square CMS"]?.url ?? "",
   categories: props["🔴 카테고리"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
   keywords: props["🔴 키워드"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
-  themes: props["테마"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
+  themes: props["🔴 테마"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
   extras: props["기타"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
 })
 
