@@ -21,7 +21,7 @@ export const downloadAndUpload = async (
 
   const buffer = Buffer.from(await res.arrayBuffer())
   const contentType = res.headers.get("content-type") ?? "image/jpeg"
-  const filename = extractFilename(imageUrl)
+  const filename = ensureExtension(extractFilename(imageUrl), contentType)
 
   return uploadWpMedia(buffer, filename, contentType)
 }
@@ -34,6 +34,24 @@ const extractFilename = (url: string): string => {
   const segments = pathname.split("/")
   const last = segments[segments.length - 1] ?? "image.jpg"
   return decodeURIComponent(last)
+}
+
+const MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/svg+xml": ".svg",
+}
+
+/**
+ * 파일명에 확장자가 없으면 content-type 기반으로 추가
+ * (Unsplash 등 확장자 없는 URL 대응)
+ */
+const ensureExtension = (filename: string, contentType: string): string => {
+  if (/\.[a-zA-Z0-9]{2,5}$/.test(filename)) return filename
+  const ext = MIME_TO_EXT[contentType] ?? ".jpg"
+  return filename + ext
 }
 
 /**
