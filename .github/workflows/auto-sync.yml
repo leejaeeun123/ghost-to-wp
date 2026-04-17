@@ -2,8 +2,8 @@ name: Auto Sync Ghost → WP (매주 금요일 11:00 KST)
 
 on:
   schedule:
-    # UTC 02:00 = KST 11:00, 매주 금요일
-    - cron: "0 2 * * 5"
+    # UTC 00:00 (KST 09:00) — GitHub Actions 지연 버퍼 감안, 매주 금요일
+    - cron: "0 0 * * 5"
   workflow_dispatch: # 수동 실행 지원
 
 jobs:
