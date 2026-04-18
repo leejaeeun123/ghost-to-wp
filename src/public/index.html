@@ -107,6 +107,7 @@
     </section>
 
     <section id="tab-blog-brunch" class="tab-content">
+      <div class="brunch-session-bar" id="brunch-session-bar">세션 확인 중...</div>
       <div class="blog-controls">
         <span id="blog-brunch-week" class="blog-week-label">Loading...</span>
         <button id="btn-blog-brunch-refresh">Refresh</button>
@@ -114,10 +115,28 @@
       <div class="blog-layout">
         <div class="blog-list" id="blog-brunch-list"></div>
         <div class="blog-preview" id="blog-brunch-preview">
-          <p class="blog-preview-empty">아티클을 선택하면 미리보기가 표시됩니다.</p>
+          <p class="blog-preview-empty">아티클을 선택하면 발행 준비 화면이 표시됩니다.</p>
         </div>
       </div>
     </section>
+
+    <div id="brunch-session-modal" class="brunch-modal hidden">
+      <div class="brunch-modal-body">
+        <h3>브런치 세션 갱신</h3>
+        <ol class="brunch-modal-steps">
+          <li>브런치(brunch.co.kr) 로그인 상태에서 F12로 개발자도구 열기</li>
+          <li>Network 탭 → Fetch/XHR 필터</li>
+          <li>페이지 새로고침 후 <code>api.brunch.co.kr</code> 요청 1개 우클릭</li>
+          <li>Copy → <strong>Copy as cURL (bash)</strong> 선택</li>
+          <li>아래 영역에 붙여넣기 (Ctrl+V) → 저장</li>
+        </ol>
+        <textarea id="brunch-session-curl" rows="8" placeholder="curl 'https://api.brunch.co.kr/v2/me' \&#10;  -H 'accept: application/json' \&#10;  -H 'cookie: ...' \&#10;  -H 'x-csrf-token: ...'"></textarea>
+        <div class="brunch-modal-actions">
+          <button id="btn-brunch-session-cancel">취소</button>
+          <button id="btn-brunch-session-save">저장</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <div id="toast" class="toast hidden"></div>

@@ -282,3 +282,78 @@ tr.selected:hover { background: #e0eaff; }
 }
 .blog-rendered img { max-width: 100%; height: auto; }
 .blog-rendered hr { margin: 16px 0; }
+
+/* ===== Brunch 자동 발행 ===== */
+.brunch-session-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 14px; border-radius: 6px; margin-bottom: 12px;
+  font-size: 13px;
+}
+.brunch-session-bar.ok { background: #f0f9f0; border: 1px solid #c3e6c3; color: #2d6a2d; }
+.brunch-session-bar.warn { background: #fff4e5; border: 1px solid #ffd08a; color: #8a4b00; }
+.brunch-session-bar button {
+  margin-left: auto; padding: 4px 10px; font-size: 12px;
+  border-radius: 4px; border: 1px solid #888; background: #fff; cursor: pointer;
+}
+
+.brunch-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.brunch-modal.hidden { display: none; }
+.brunch-modal-body {
+  background: #fff; border-radius: 8px; padding: 20px 24px;
+  max-width: 640px; width: 90%;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.brunch-modal-body h3 { margin: 0 0 12px; }
+.brunch-modal-steps { font-size: 13px; line-height: 1.6; color: #555; padding-left: 20px; }
+.brunch-modal-steps code { background: #f4f4f4; padding: 1px 5px; border-radius: 3px; }
+.brunch-modal-body textarea {
+  width: 100%; box-sizing: border-box; margin-top: 10px;
+  font-family: Consolas, monospace; font-size: 12px;
+  border: 1px solid #ccc; border-radius: 4px; padding: 8px;
+}
+.brunch-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.brunch-modal-actions button {
+  padding: 6px 14px; font-size: 13px;
+  border-radius: 4px; border: 1px solid #888; cursor: pointer;
+}
+#btn-brunch-session-save { background: #2d6a2d; color: #fff; border-color: #2d6a2d; }
+
+.brunch-section-title { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: #444; }
+
+.brunch-tag-pool { display: flex; flex-wrap: wrap; gap: 6px; }
+.brunch-tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border: 1px solid #d0d0d0; border-radius: 16px;
+  font-size: 12px; cursor: pointer; background: #fff;
+}
+.brunch-tag-chip input { margin: 0; }
+.brunch-tag-chip:has(input:checked) { background: #e8f0fe; border-color: #4285f4; }
+.brunch-tag-origin {
+  font-size: 10px; color: #888; text-transform: uppercase;
+  padding: 1px 4px; border-radius: 3px; background: #f4f4f4;
+}
+
+.brunch-mode-row {
+  display: flex; gap: 16px; margin-bottom: 8px; font-size: 13px;
+}
+.brunch-mode-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.brunch-schedule-select {
+  width: 100%; padding: 6px 8px; font-size: 13px;
+  border: 1px solid #ccc; border-radius: 4px;
+}
+.brunch-schedule-select:disabled { background: #f4f4f4; }
+
+.brunch-publish-btn {
+  margin-top: 16px; width: 100%; padding: 10px;
+  background: #00c896; color: #fff; border: none; border-radius: 6px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.brunch-publish-btn:disabled { background: #ccc; cursor: not-allowed; }
+.brunch-publish-status { margin-top: 10px; font-size: 13px; }
+
+.blog-preview-empty.error { color: #c00; }

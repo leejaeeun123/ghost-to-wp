@@ -8,6 +8,7 @@ import { previewRoutes } from "./routes/preview-routes.js"
 import { syncRoutes } from "./routes/sync-routes.js"
 import { wpRoutes } from "./routes/wp-routes.js"
 import { blogRoutes } from "./routes/blog-routes.js"
+import { brunchRoutes } from "./routes/brunch-routes.js"
 import { runScheduledSync } from "./scheduled-sync.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -22,6 +23,8 @@ app.use("/api/ghost", ghostRoutes)
 app.use("/api/preview", previewRoutes)
 app.use("/api/sync", syncRoutes)
 app.use("/api/wp", wpRoutes)
+// brunchRoutes는 blogRoutes보다 먼저 마운트해야 /brunch/:wpId 폴백 핸들러에 가로채지지 않는다.
+app.use("/api/blog/brunch", brunchRoutes)
 app.use("/api/blog", blogRoutes)
 
 app.listen(PORT, () => {
