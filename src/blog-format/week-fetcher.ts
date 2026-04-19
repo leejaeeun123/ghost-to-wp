@@ -21,16 +21,23 @@ const pad = (n: number): string => String(n).padStart(2, "0")
 const ymd = (y: number, m: number, d: number): string =>
   `${y}-${pad(m)}-${pad(d)}`
 
-/** 오늘(KST) 기준 이번 주 월~일 범위 계산 */
+/**
+ * 오늘(KST) 기준 "다가오는 브런치 발행 주" 계산.
+ * 월/화면 이번 주 월요일, 수~일이면 다음 주 월요일을 반환해 UI가 늘 다음 발행 타겟을 보여주도록.
+ */
 export const getCurrentKstWeek = (): WeekRange => {
   const todayKstStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" })
   const [y, m, d] = todayKstStr.split("-").map(Number)
   const dateUtc = new Date(Date.UTC(y, m - 1, d))
-  const dayOfWeek = dateUtc.getUTCDay() // 0=일, 1=월
-  const daysSinceMonday = (dayOfWeek + 6) % 7
+  const dayOfWeek = dateUtc.getUTCDay() // 0=일, 1=월 ... 6=토
+  let mondayOffset: number
+  if (dayOfWeek === 1) mondayOffset = 0            // Mon → today
+  else if (dayOfWeek === 2) mondayOffset = -1      // Tue → yesterday (this Mon)
+  else if (dayOfWeek === 0) mondayOffset = 1       // Sun → tomorrow (next Mon)
+  else mondayOffset = (1 - dayOfWeek + 7) % 7      // Wed-Sat → next Mon
 
   const monday = new Date(dateUtc)
-  monday.setUTCDate(dateUtc.getUTCDate() - daysSinceMonday)
+  monday.setUTCDate(dateUtc.getUTCDate() + mondayOffset)
   const sunday = new Date(monday)
   sunday.setUTCDate(monday.getUTCDate() + 6)
 
