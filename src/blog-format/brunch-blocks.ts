@@ -7,6 +7,7 @@ import type {
   BrunchInlineNode,
   BrunchOpengraphBlock,
   BrunchOpengraphData,
+  BrunchQuotationBlock,
   BrunchTextBlock,
 } from "./brunch-types.js"
 
@@ -35,6 +36,26 @@ export const colored = (
   return { type: "text", data, style: { color } }
 }
 
+/**
+ * 브런치 커버 제목 자동 줄바꿈.
+ * 공백이 있으면 중앙에 가장 가까운 공백에서 두 줄로 나눈다.
+ * 공백이 없거나 너무 짧으면(8자 이하) 한 줄 유지.
+ */
+const splitTitleAtMiddle = (title: string): string[] => {
+  if (title.length <= 8) return [title]
+  const spaces: number[] = []
+  for (let i = 0; i < title.length; i++) if (title[i] === " ") spaces.push(i)
+  if (spaces.length === 0) return [title]
+  const mid = title.length / 2
+  let best = spaces[0]
+  let bestDist = Math.abs(best - mid)
+  for (const idx of spaces) {
+    const d = Math.abs(idx - mid)
+    if (d < bestDist) { best = idx; bestDist = d }
+  }
+  return [title.slice(0, best), title.slice(best + 1)]
+}
+
 /** 블록 빌더 */
 export const buildCover = (args: {
   title: string
@@ -43,7 +64,12 @@ export const buildCover = (args: {
   width: number
   height: number
 }): BrunchCoverBlock => {
-  const titleData: BrunchInlineNode[] = [inline(args.title)]
+  const lines = splitTitleAtMiddle(args.title)
+  const titleData: BrunchInlineNode[] = []
+  lines.forEach((ln, i) => {
+    if (i > 0) titleData.push(inlineBr())
+    titleData.push(inline(ln))
+  })
   const subData: BrunchInlineNode[] = [inline(args.subTitle)]
   return {
     type: "cover",
@@ -59,7 +85,8 @@ export const buildCover = (args: {
       data: subData,
       text: args.subTitle,
     },
-    plain: { title: args.title, "title-sub": args.subTitle },
+    // HAR 실측: plain.title은 줄바꿈 제거하고 공백도 없이 단순 concat
+    plain: { title: lines.join(""), "title-sub": args.subTitle },
     style: { "background-image": args.coverUrl },
     width: args.width,
     height: args.height,
@@ -95,6 +122,20 @@ export const buildHr = (kind: BrunchHrBlock["kind"] = "hr_type_6"): BrunchHrBloc
   kind,
 })
 
+/** 브런치 인용문 블록. HAR 실측상 data 끝에 {type:"br"}이 붙는 관습을 따른다. */
+export const buildQuotation = (
+  inner: BrunchInlineNode | BrunchInlineNode[] | string,
+  kind: BrunchQuotationBlock["kind"] = "bar",
+): BrunchQuotationBlock => {
+  let data: BrunchInlineNode[]
+  if (typeof inner === "string") data = [inline(inner)]
+  else if (Array.isArray(inner)) data = [...inner]
+  else data = [inner]
+  const last = data[data.length - 1]
+  if (!last || last.type !== "br") data.push(inlineBr())
+  return { type: "quotation", kind, data }
+}
+
 export const buildOpengraph = (data: BrunchOpengraphData): BrunchOpengraphBlock => ({
   type: "opengraph",
   openGraphData: data,
@@ -117,6 +158,8 @@ export const extractPlainText = (blocks: BrunchBlock[]): string => {
       parts.push(b.title.text)
       parts.push(b["title-sub"].text)
     } else if (b.type === "text") {
+      parts.push(walkInline(b.data))
+    } else if (b.type === "quotation") {
       parts.push(walkInline(b.data))
     } else if (b.type === "opengraph") {
       parts.push(b.openGraphData.url)

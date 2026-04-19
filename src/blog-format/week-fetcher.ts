@@ -65,10 +65,15 @@ const stripHtml = (html: string): string =>
   html
     .replace(/<br\s*\/?>/gi, " ")
     .replace(/<[^>]+>/g, "")
+    // HTML numeric entities (WP의 typographic quotes 등) — 브런치 제목 30자 제한 회피
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
     .replace(/\s+/g, " ")
     .trim()
 

@@ -4,6 +4,8 @@ import {
   publishBrunchArticle,
   type BrunchPreparedArticle,
 } from "../blog-format/brunch-publisher.js"
+import { runBrunchAutoReserve } from "../blog-format/brunch-auto-publish.js"
+import { listReserved } from "../blog-format/brunch-publish-state.js"
 import { BrunchSessionExpiredError, type BrunchKeyword } from "../brunch-client.js"
 import { loadSession, parseCurl, saveSession, sessionStatus } from "../brunch-session.js"
 import { findArticle, loadWeek } from "./blog-week-cache.js"
@@ -141,4 +143,20 @@ brunchRoutes.post("/publish/:wpId", async (req, res) => {
   } catch (err) {
     sendError(res, err)
   }
+})
+
+/** POST /auto-reserve — 수동 트리거. query ?monday=YYYY-MM-DD로 특정 주 지정 가능. */
+brunchRoutes.post("/auto-reserve", async (req, res) => {
+  try {
+    const monday = typeof req.query.monday === "string" ? req.query.monday : undefined
+    const summary = await runBrunchAutoReserve(monday)
+    res.json(summary)
+  } catch (err) {
+    sendError(res, err)
+  }
+})
+
+/** GET /reserved — 지금까지 자동/수동으로 예약 등록된 아티클 목록 */
+brunchRoutes.get("/reserved", (_req, res) => {
+  res.json({ list: listReserved() })
 })

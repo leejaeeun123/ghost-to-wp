@@ -32,11 +32,37 @@ export interface BrunchPublishPayload {
   commentWritable: boolean
   membershipPromotionEnabled: boolean
   profileId: string
-  /** "reserved" | "published" */
-  status: "reserved" | "published"
+  /** 예약발행: "reserved" */
+  status: "reserved"
   /** UNIX ms (예약발행 시점) */
   publishRequestTime: number
   articleNo: number
+}
+
+export interface BrunchImmediatePayload {
+  title: string
+  subTitle: string
+  content: string
+  contentSummary: string
+  images: Array<BrunchCoverImage & { type: "cover" }>
+  videos: unknown[]
+  keywords: Array<BrunchKeyword & { sequence: number }>
+  commentWritable: boolean
+  profileId: string
+}
+
+export interface BrunchNewReservedPayload {
+  title: string
+  subTitle: string
+  content: string
+  contentSummary: string
+  images: Array<BrunchCoverImage & { type: "cover" }>
+  videos: unknown[]
+  keywords: Array<BrunchKeyword & { sequence: number }>
+  commentWritable: boolean
+  membershipPromotionEnabled: boolean
+  profileId: string
+  publishRequestTime: number
 }
 
 const USER_AGENT =
@@ -267,6 +293,148 @@ export const publishArticle = async (
     }
   }
   throw lastErr
+}
+
+/**
+ * 즉시발행 — HAR 실측: POST /v1/article (articleNo 없음), status="publish".
+ * 예약과 달리 path에 articleNo 없음, body에도 articleNo/publishRequestTime/membershipPromotionEnabled 제외.
+ * 응답에서 새로 발행된 articleNo 반환.
+ */
+export const publishArticleImmediate = async (
+  session: BrunchSession,
+  payload: BrunchImmediatePayload,
+): Promise<{ articleNo: number }> => {
+  const body = urlencoded({
+    title: payload.title,
+    subTitle: payload.subTitle,
+    content: payload.content,
+    contentSummary: payload.contentSummary,
+    images: JSON.stringify(payload.images),
+    videos: JSON.stringify(payload.videos),
+    keywords: JSON.stringify(payload.keywords),
+    commentWritable: String(payload.commentWritable),
+    profileId: payload.profileId,
+    status: "publish",
+  })
+  const data = await callJson<unknown>(session, "/v1/article", {
+    method: "POST",
+    headers: {
+      ...baseHeaders(session),
+      "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+    },
+    body,
+  })
+  const articleNo = findArticleNoInResponse(data)
+  if (articleNo > 0) return { articleNo }
+  // 폴백: 최근 발행 목록에서 title 일치 항목(없으면 max no) 조회
+  try {
+    const recent = await callJson<unknown>(
+      session,
+      `/v1/article/@${payload.profileId}?status=published`,
+      { method: "GET", headers: baseHeaders(session) },
+    )
+    const matched = pickArticleNoByTitle(recent, payload.title)
+    if (matched > 0) return { articleNo: matched }
+  } catch {}
+  throw new Error("즉시발행 성공했지만 articleNo를 찾지 못했습니다.")
+}
+
+/**
+ * 신규 예약발행 — POST /v1/article (articleNo 없음), status="reserved".
+ * 기존 `publishArticle`은 path에 articleNo가 필요해 이미 생성된 draft에만 쓰지만,
+ * 이 함수는 즉시발행과 동일하게 새 아티클을 생성하면서 reserved로 등록.
+ */
+export const publishArticleReservedNew = async (
+  session: BrunchSession,
+  payload: BrunchNewReservedPayload,
+): Promise<{ articleNo: number }> => {
+  const body = urlencoded({
+    title: payload.title,
+    subTitle: payload.subTitle,
+    content: payload.content,
+    contentSummary: payload.contentSummary,
+    images: JSON.stringify(payload.images),
+    videos: JSON.stringify(payload.videos),
+    keywords: JSON.stringify(payload.keywords),
+    commentWritable: String(payload.commentWritable),
+    publishRequestTime: payload.publishRequestTime,
+    membershipPromotionEnabled: String(payload.membershipPromotionEnabled),
+    profileId: payload.profileId,
+    status: "reserved",
+  })
+  const data = await callJson<unknown>(session, "/v1/article", {
+    method: "POST",
+    headers: {
+      ...baseHeaders(session),
+      "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+    },
+    body,
+  })
+  const articleNo = findArticleNoInResponse(data)
+  if (articleNo > 0) return { articleNo }
+  // 폴백: 최근 예약발행 목록에서 title 일치 항목(없으면 max no) 조회
+  try {
+    const recent = await callJson<unknown>(
+      session,
+      `/v1/article/@${payload.profileId}?status=reserved`,
+      { method: "GET", headers: baseHeaders(session) },
+    )
+    const matched = pickArticleNoByTitle(recent, payload.title)
+    if (matched > 0) return { articleNo: matched }
+  } catch {}
+  throw new Error("예약발행 성공했지만 articleNo를 찾지 못했습니다.")
+}
+
+/**
+ * 브런치 `/v1/article/@{profileId}?status=...` 응답에서 title이 일치하는 항목의 no 반환.
+ * 일치 항목 없으면 max no 반환(fallback).
+ */
+const pickArticleNoByTitle = (data: unknown, title: string): number => {
+  const list = extractArticleList(data)
+  if (list.length === 0) return 0
+  const normalize = (s: string) => s.trim().replace(/\s+/g, " ")
+  const target = normalize(title)
+  const match = list.find((it) => normalize(String(it.title ?? "")) === target)
+  if (match && typeof match.no === "number") return match.no
+  // fallback: 가장 큰 no (브런치 articleNo는 auto-increment)
+  let maxNo = 0
+  for (const it of list) if (typeof it.no === "number" && it.no > maxNo) maxNo = it.no
+  return maxNo
+}
+
+const extractArticleList = (v: unknown): Array<Record<string, unknown>> => {
+  if (!v || typeof v !== "object") return []
+  const rec = v as Record<string, unknown>
+  const candidates: unknown[] = [
+    rec.list,
+    rec.data && typeof rec.data === "object" ? (rec.data as Record<string, unknown>).list : undefined,
+  ]
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c.filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
+  }
+  return []
+}
+
+/** 응답 트리에서 articleNo 또는 no(>0) 추출. articleNo 우선. */
+const findArticleNoInResponse = (v: unknown, depth = 0): number => {
+  if (depth > 6 || v == null) return 0
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      const n = findArticleNoInResponse(item, depth + 1)
+      if (n > 0) return n
+    }
+    return 0
+  }
+  if (typeof v === "object") {
+    const rec = v as Record<string, unknown>
+    if (typeof rec.articleNo === "number" && rec.articleNo > 0) return rec.articleNo
+    if (typeof rec.no === "number" && rec.no > 0) return rec.no
+    for (const key of Object.keys(rec)) {
+      const n = findArticleNoInResponse(rec[key], depth + 1)
+      if (n > 0) return n
+    }
+  }
+  return 0
 }
 
 /**

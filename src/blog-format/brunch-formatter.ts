@@ -14,6 +14,7 @@ import {
   buildHr,
   buildOpengraph,
   buildParagraph,
+  buildQuotation,
   colored,
   extractPlainText,
   inline,
@@ -96,29 +97,46 @@ const decodeEntities = (s: string): string =>
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")
 
-const introToBlocks = (introHtml: string): BrunchTextBlock[] => {
+type IntroBlock = BrunchTextBlock | import("./brunch-types.js").BrunchQuotationBlock
+
+/** 인라인 HTML → 줄바꿈(`<br>`) 보존한 BrunchInlineNode 배열 */
+const htmlToInlineNodes = (inner: string): { nodes: BrunchInlineNode[]; hasContent: boolean } => {
+  const decoded = decodeEntities(
+    inner.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, ""),
+  )
+  const lines = decoded.split("\n").map((s) => s.trim())
+  const nodes: BrunchInlineNode[] = []
+  let hasContent = false
+  lines.forEach((line, i) => {
+    if (i > 0) nodes.push(inlineBr())
+    if (line) {
+      nodes.push(inline(line))
+      hasContent = true
+    }
+  })
+  return { nodes, hasContent }
+}
+
+const introToBlocks = (introHtml: string): IntroBlock[] => {
   if (!introHtml) return []
   const cleaned = introHtml.replace(/<!--[\s\S]*?-->/g, "")
-  const out: BrunchTextBlock[] = []
-  const pRe = /<p\b[^>]*>([\s\S]*?)<\/p>/gi
+  const collected: IntroBlock[] = []
+  // 소스 순서대로 <p> 또는 <blockquote> 매칭. \1 역참조로 같은 태그만 닫도록 강제.
+  const blockRe = /<(p|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/gi
   let m: RegExpExecArray | null
-  while ((m = pRe.exec(cleaned))) {
-    const inner = m[1]
-    const decoded = decodeEntities(
-      inner.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, ""),
-    )
-    const lines = decoded.split("\n").map((s) => s.trim())
-    const nodes: BrunchInlineNode[] = []
-    let hasContent = false
-    lines.forEach((line, i) => {
-      if (i > 0) nodes.push(inlineBr())
-      if (line) {
-        nodes.push(inline(line))
-        hasContent = true
-      }
-    })
-    if (hasContent) out.push(buildParagraph(nodes))
+  while ((m = blockRe.exec(cleaned))) {
+    const tag = m[1].toLowerCase()
+    const { nodes, hasContent } = htmlToInlineNodes(m[2])
+    if (!hasContent) continue
+    if (tag === "blockquote") collected.push(buildQuotation(nodes))
+    else collected.push(buildParagraph(nodes))
   }
+  // 블록 사이에 빈 줄을 넣어 가독성 확보 (브런치 수동 발행 스타일과 동일)
+  const out: IntroBlock[] = []
+  collected.forEach((p, i) => {
+    if (i > 0) out.push(buildBlankLine())
+    out.push(p)
+  })
   return out
 }
 

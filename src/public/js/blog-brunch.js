@@ -144,7 +144,7 @@ const BlogBrunch = {
       </label>
     `).join("")
 
-    const scheduleOptions = this.buildScheduleOptions(scheduleDay)
+    const scheduleInput = this.buildScheduleInput(wpId, scheduleDay)
     const notesHtml = (prep.notes || []).map((n) => `<li>${Blog.esc(n)}</li>`).join("")
 
     root.innerHTML = `
@@ -171,7 +171,7 @@ const BlogBrunch = {
         <label><input type="radio" name="brunch-mode-${wpId}" value="reserved" checked> 예약발행</label>
         <label><input type="radio" name="brunch-mode-${wpId}" value="published"> 즉시발행</label>
       </div>
-      <select id="brunch-schedule-${wpId}" class="brunch-schedule-select">${scheduleOptions}</select>
+      ${scheduleInput}
 
       <button id="brunch-publish-${wpId}" class="brunch-publish-btn" disabled>예약 발행</button>
       <div class="brunch-publish-status" id="brunch-status-${wpId}"></div>
@@ -205,18 +205,24 @@ const BlogBrunch = {
     pub.addEventListener("click", () => this.publish(wpId, pool, getMode()))
   },
 
-  buildScheduleOptions(scheduleDay) {
+  /**
+   * datetime-local 입력. 브런치 API는 분 단위 예약을 거부하므로 정각(:00)만 허용.
+   * step=3600, min=다음 정각, 기본값=해당 요일 19:00(미래일 때만) / 과거면 다음 정각.
+   */
+  buildScheduleInput(wpId, scheduleDay) {
     const monday = new Date(this.mondayQuery + "T19:00:00+09:00").getTime()
     const tuesday = monday + 24 * 60 * 60 * 1000
-    const fmt = (ts) => new Date(ts).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })
-    const opts = [
-      { ts: monday, label: `월요일 19:00 · ${fmt(monday)}` },
-      { ts: tuesday, label: `화요일 19:00 · ${fmt(tuesday)}` },
-    ]
-    return opts.map((o) => {
-      const selected = (scheduleDay === "monday" && o.ts === monday) || (scheduleDay === "tuesday" && o.ts === tuesday)
-      return `<option value="${o.ts}" ${selected ? "selected" : ""}>${Blog.esc(o.label)}</option>`
-    }).join("")
+    const candidate = scheduleDay === "tuesday" ? tuesday : monday
+    const now = Date.now()
+    const HOUR_MS = 60 * 60 * 1000
+    const nextHour = Math.ceil((now + 1) / HOUR_MS) * HOUR_MS
+    const valueMs = candidate > nextHour ? candidate : nextHour
+    const fmt = (ms) => {
+      const d = new Date(ms)
+      const pad = (n) => String(n).padStart(2, "0")
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`
+    }
+    return `<input type="datetime-local" id="brunch-schedule-${wpId}" class="brunch-schedule-select" min="${fmt(nextHour)}" value="${fmt(valueMs)}" step="3600" />`
   },
 
   async publish(wpId, pool, mode = "reserved") {
@@ -230,7 +236,14 @@ const BlogBrunch = {
     })
     const body = { mode, keywords }
     if (mode === "reserved") {
-      body.publishRequestTime = Number(document.getElementById(`brunch-schedule-${wpId}`).value)
+      const raw = document.getElementById(`brunch-schedule-${wpId}`).value
+      const d = raw ? new Date(raw) : null
+      if (!d || isNaN(d.getTime())) { App.toast("예약 시각을 선택해주세요", "error"); return }
+      // 브런치는 정각만 허용 → 분/초/ms 0으로 고정
+      d.setMinutes(0, 0, 0)
+      const ms = d.getTime()
+      if (ms <= Date.now()) { App.toast("예약 시각은 현재 이후여야 합니다 (정각만 가능)", "error"); return }
+      body.publishRequestTime = ms
     }
     const btn = document.getElementById(`brunch-publish-${wpId}`)
     btn.disabled = true

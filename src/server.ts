@@ -10,6 +10,7 @@ import { wpRoutes } from "./routes/wp-routes.js"
 import { blogRoutes } from "./routes/blog-routes.js"
 import { brunchRoutes } from "./routes/brunch-routes.js"
 import { runScheduledSync } from "./scheduled-sync.js"
+import { runBrunchAutoReserve } from "./blog-format/brunch-auto-publish.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -41,5 +42,20 @@ app.listen(PORT, () => {
     }
   }, { timezone: "Asia/Seoul" })
 
-  console.log(`  CRON: 매주 금요일 11:00 KST 자동 동기화 활성화\n`)
+  // 매일 08:00 KST 브런치 자동 예약 — 토요일이 주 시점이고 나머지는 늦게 올라온 아티클 재시도용
+  cron.schedule("0 8 * * *", async () => {
+    console.log("\n[CRON] 브런치 자동 예약 실행")
+    try {
+      const summary = await runBrunchAutoReserve()
+      console.log(
+        `[CRON] 브런치 예약 완료: 예약 ${summary.reserved}, 스킵 ${summary.skipped.length}, 실패 ${summary.failures.length}` +
+          (summary.sessionExpired ? " (세션 만료)" : ""),
+      )
+    } catch (err) {
+      console.error("[CRON] 브런치 자동 예약 오류:", err)
+    }
+  }, { timezone: "Asia/Seoul" })
+
+  console.log(`  CRON: 매주 금요일 11:00 KST 자동 동기화 활성화`)
+  console.log(`  CRON: 매일 08:00 KST 브런치 자동 예약 활성화\n`)
 })

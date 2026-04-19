@@ -206,6 +206,26 @@ export const addNotionComment = async (
   }
 }
 
+/** Notion 페이지에 임의의 rich_text 댓글 추가 — 멘션/링크 자유 구성용 */
+export const addNotionRichComment = async (
+  pageId: string,
+  richText: Array<Record<string, unknown>>,
+): Promise<boolean> => {
+  const config = getNotionConfig()
+  if (!config) return false
+  try {
+    await notionFetch<unknown>("/comments", config.apiKey, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parent: { page_id: pageId }, rich_text: richText }),
+    })
+    return true
+  } catch (err) {
+    console.error(`  Notion 댓글 실패 (${pageId}):`, err instanceof Error ? err.message : err)
+    return false
+  }
+}
+
 /**
  * Notion DB 전체 조회 (웹 어드민 용)
  * 최근 수정순으로 반환

@@ -51,6 +51,13 @@ export interface BrunchHrBlock {
   kind: "hr_type_1" | "hr_type_2" | "hr_type_3" | "hr_type_4" | "hr_type_5" | "hr_type_6"
 }
 
+/** 인용 블록 — kind="bar"(blockquote_type2) 등. data 끝에 {type:"br"} 포함 관습. */
+export interface BrunchQuotationBlock {
+  type: "quotation"
+  kind: "bar"
+  data: BrunchInlineNode[]
+}
+
 /** OG 카드 블록 — /v2/url/info 응답을 embed */
 export interface BrunchOpengraphData {
   title: string
@@ -68,6 +75,7 @@ export type BrunchBlock =
   | BrunchCoverBlock
   | BrunchTextBlock
   | BrunchHrBlock
+  | BrunchQuotationBlock
   | BrunchOpengraphBlock
 
 /** 커버 이미지 메타 — /v2/upload 응답을 저장 */

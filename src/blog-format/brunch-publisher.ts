@@ -11,12 +11,14 @@ import {
   getUrlInfo,
   keywordRecommend,
   keywordSuggest,
-  publishArticle,
+  publishArticleImmediate,
+  publishArticleReservedNew,
   tempCreate,
   tempDelete,
   uploadImage,
+  type BrunchImmediatePayload,
   type BrunchKeyword,
-  type BrunchPublishPayload,
+  type BrunchNewReservedPayload,
 } from "../brunch-client.js"
 import type { BrunchSession } from "../brunch-session.js"
 
@@ -44,6 +46,61 @@ const fetchImageBuffer = async (url: string): Promise<{ buffer: Buffer; mime: st
   const arr = new Uint8Array(await res.arrayBuffer())
   const mime = res.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg"
   return { buffer: Buffer.from(arr), mime }
+}
+
+/**
+ * 페이지 HTML을 직접 받아 og:* / twitter:* meta를 파싱.
+ * 브런치 /v2/url/info가 antiegg.kr에서 자주 500이 떠 폴백 소스로 사용.
+ */
+interface DirectOg { title?: string; description?: string; image?: string; canonicalUrl?: string }
+const fetchDirectOg = async (url: string): Promise<DirectOg> => {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (compatible; AntieggBrunchBot/1.0; +https://antiegg.kr/)",
+        accept: "text/html,application/xhtml+xml",
+      },
+    })
+    if (!res.ok) return {}
+    const html = await res.text()
+    const head = html.slice(0, 120_000)
+    const pick = (prop: string): string | undefined => {
+      const attrPattern = `(?:property|name)=["']${prop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`
+      const r1 = new RegExp(`<meta\\s+${attrPattern}\\s+content=["']([^"']*)["']`, "i")
+      const r2 = new RegExp(`<meta\\s+content=["']([^"']*)["']\\s+${attrPattern}`, "i")
+      return head.match(r1)?.[1] || head.match(r2)?.[1]
+    }
+    return {
+      title: pick("og:title") || pick("twitter:title"),
+      description: pick("og:description") || pick("twitter:description"),
+      image: pick("og:image") || pick("twitter:image"),
+      canonicalUrl: pick("og:url"),
+    }
+  } catch {
+    return {}
+  }
+}
+
+/** 브런치 OG + 직접 파싱 OG 병합. 브런치가 hostname만 준 경우 직접 파싱 결과로 덮어쓴다. */
+const mergeOg = (
+  base: BrunchOpengraphData,
+  direct: DirectOg,
+  finalFallbacks: Partial<DirectOg> = {},
+): BrunchOpengraphData => {
+  const hostname = (() => {
+    try { return new URL(base.url).hostname.replace(/^www\./, "") } catch { return base.url }
+  })()
+  const baseTitleIsHostname = base.title && base.title === hostname
+  const title =
+    (!baseTitleIsHostname && base.title) ||
+    direct.title ||
+    finalFallbacks.title ||
+    base.title
+  const description = base.description || direct.description || finalFallbacks.description || ""
+  const image = base.image || direct.image || finalFallbacks.image || ""
+  const canonicalUrl = base.canonicalUrl || direct.canonicalUrl || base.url
+  return { title, description, url: base.url, canonicalUrl, image }
 }
 
 const matchingKeyword = (candidate: string, results: BrunchKeyword[]): BrunchKeyword | null => {
@@ -79,12 +136,30 @@ export const prepareBrunchArticle = async (
   session: BrunchSession,
   article: WeekArticle,
 ): Promise<BrunchPreparedArticle> => {
-  const [{ buffer: coverBuffer, mime: coverMime }, ogWp, ogHome, ogAbout] = await Promise.all([
+  const [
+    { buffer: coverBuffer, mime: coverMime },
+    ogWpRaw,
+    ogHomeRaw,
+    ogAboutRaw,
+    directWp,
+    directHome,
+    directAbout,
+  ] = await Promise.all([
     fetchImageBuffer(article.featureImageUrl),
     getUrlInfo(session, article.wpLink),
     getUrlInfo(session, ANTIEGG_HOME_URL),
     getUrlInfo(session, ANTIEGG_ABOUT_URL),
+    fetchDirectOg(article.wpLink),
+    fetchDirectOg(ANTIEGG_HOME_URL),
+    fetchDirectOg(ANTIEGG_ABOUT_URL),
   ])
+  const ogWp = mergeOg(ogWpRaw, directWp, {
+    title: article.title,
+    image: article.featureImageUrl,
+    description: article.subtitle,
+  })
+  const ogHome = mergeOg(ogHomeRaw, directHome)
+  const ogAbout = mergeOg(ogAboutRaw, directAbout)
 
   const meta = await sharp(coverBuffer).metadata()
   const coverWidth = meta.width || 2000
@@ -144,14 +219,14 @@ export const publishBrunchArticle = async (
 
   // 브런치 실제 플로우를 재현: cover_text + 빈 body로 드래프트 생성 → articleNo 확보
   // 이 단계에서는 kakaocdn URL이 없으므로 cover_full은 불가.
-  const { articleNo } = await tempCreate(session, BRUNCH_INITIAL_PLACEHOLDER, 0)
+  const { articleNo: tempArticleNo } = await tempCreate(session, BRUNCH_INITIAL_PLACEHOLDER, 0)
 
   const uploaded = await uploadImage(
     session,
     prepared.coverBuffer,
     "cover.jpg",
     prepared.coverMime,
-    articleNo,
+    tempArticleNo,
   )
 
   const finalDraft = formatForBrunch(prepared.article, {
@@ -165,55 +240,86 @@ export const publishBrunchArticle = async (
     },
   })
   // 실제 브런치는 업데이트 호출에서도 articleNo=0을 body에 담음 (세션으로 WIP 식별).
-  // 우리가 articleNo=articleNo를 넣으면 응답에서 같은 값이 돌아오도록 동작.
   await tempCreate(session, finalDraft.contentHtml, 0)
 
-  const payload: BrunchPublishPayload = {
-    title: finalDraft.title,
-    subTitle: finalDraft.subTitle,
-    content: finalDraft.contentHtml,
-    contentSummary: finalDraft.contentSummary,
-    // 브런치는 images의 width/height를 문자열로 기대 (HAR 실측)
-    images: [
-      {
-        width: String(prepared.coverWidth) as unknown as number,
-        height: String(prepared.coverHeight) as unknown as number,
-        type: "cover",
-        url: uploaded.url,
-      },
-    ],
-    videos: [],
-    // 브런치 실측 필드 순서: {sequence, no, keyword}
-    keywords: opts.keywords.slice(0, 3).map((k, i) => ({
-      sequence: i + 1,
-      no: k.no,
-      keyword: k.keyword,
-    })),
-    commentWritable: true,
-    membershipPromotionEnabled: false,
-    profileId: BRUNCH_PROFILE_ID,
-    // 브런치는 실측상 status="reserved"만 검증됨. "즉시발행"은 1분 뒤 예약으로 우회
-    // (HAR capture의 실제 publish는 모두 reserved 상태였음)
-    status: "reserved",
-    publishRequestTime:
-      opts.mode === "reserved"
-        ? (opts.publishRequestTime ?? Date.now() + 60_000)
-        : Date.now() + 60_000,
-    articleNo,
-  }
+  const coverImages = [
+    {
+      // 브런치는 images의 width/height를 문자열로 기대 (HAR 실측)
+      width: String(prepared.coverWidth) as unknown as number,
+      height: String(prepared.coverHeight) as unknown as number,
+      type: "cover" as const,
+      url: uploaded.url,
+    },
+  ]
+  // 브런치 실측 필드 순서: {sequence, no, keyword}
+  const keywords = opts.keywords.slice(0, 3).map((k, i) => ({
+    sequence: i + 1,
+    no: k.no,
+    keyword: k.keyword,
+  }))
 
   try {
-    await publishArticle(session, payload)
+    if (opts.mode === "published") {
+      // 즉시발행: POST /v1/article (articleNo 없음, status="publish")
+      const immediatePayload: BrunchImmediatePayload = {
+        title: finalDraft.title,
+        subTitle: finalDraft.subTitle,
+        content: finalDraft.contentHtml,
+        contentSummary: finalDraft.contentSummary,
+        images: coverImages,
+        videos: [],
+        keywords,
+        commentWritable: true,
+        profileId: BRUNCH_PROFILE_ID,
+      }
+      // 즉시발행은 세션의 현재 WIP 드래프트(tempArticleNo)를 그대로 발행물로 전환.
+      // 응답에서 articleNo가 안 나오면 tempArticleNo를 최종값으로 사용.
+      let newArticleNo = tempArticleNo
+      try {
+        const result = await publishArticleImmediate(session, immediatePayload)
+        if (result.articleNo > 0) newArticleNo = result.articleNo
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!/articleNo를 찾지 못했/.test(msg)) throw err
+        // 파싱만 실패한 경우 tempArticleNo를 그대로 사용
+      }
+      // 즉시발행 성공 시 temp 삭제는 불필요 (draft가 article로 전환됨). 실패해도 무시.
+      return {
+        articleNo: newArticleNo,
+        url: `https://brunch.co.kr/@${BRUNCH_PROFILE_ID}/${newArticleNo}`,
+      }
+    }
+
+    // 예약발행: POST /v1/article (articleNo 없음, status="reserved")
+    // tempCreate가 새 articleNo를 할당하지 않으므로 즉시발행과 동일한 신규 생성 엔드포인트 사용.
+    const reservedPayload: BrunchNewReservedPayload = {
+      title: finalDraft.title,
+      subTitle: finalDraft.subTitle,
+      content: finalDraft.contentHtml,
+      contentSummary: finalDraft.contentSummary,
+      images: coverImages,
+      videos: [],
+      keywords,
+      commentWritable: true,
+      membershipPromotionEnabled: false,
+      profileId: BRUNCH_PROFILE_ID,
+      publishRequestTime: opts.publishRequestTime ?? Date.now() + 60_000,
+    }
+    let reservedArticleNo = tempArticleNo
+    try {
+      const result = await publishArticleReservedNew(session, reservedPayload)
+      if (result.articleNo > 0) reservedArticleNo = result.articleNo
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!/articleNo를 찾지 못했/.test(msg)) throw err
+    }
+    return {
+      articleNo: reservedArticleNo,
+      url: `https://brunch.co.kr/@${BRUNCH_PROFILE_ID}/${reservedArticleNo}`,
+    }
   } catch (err) {
-    await tempDelete(session, articleNo).catch(() => undefined)
+    await tempDelete(session, tempArticleNo).catch(() => undefined)
     throw err
-  }
-
-  await tempDelete(session, articleNo).catch(() => undefined)
-
-  return {
-    articleNo,
-    url: `https://brunch.co.kr/@${BRUNCH_PROFILE_ID}/${articleNo}`,
   }
 }
 

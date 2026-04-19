@@ -5,6 +5,7 @@ import type {
   BrunchInlineGroup,
   BrunchInlineNode,
   BrunchOpengraphBlock,
+  BrunchQuotationBlock,
   BrunchTextBlock,
 } from "./brunch-types.js"
 
@@ -82,6 +83,16 @@ const renderHr = (block: BrunchHrBlock): string =>
   `<div class="inner_wrap"><hr></div><br>` +
   `</div>`
 
+/** 인용 블록 렌더 — kind="bar" → blockquote_type2 */
+const QUOTATION_KIND_CLASS: Record<BrunchQuotationBlock["kind"], string> = {
+  bar: "blockquote_type2",
+}
+const renderQuotation = (block: BrunchQuotationBlock): string => {
+  const typeClass = QUOTATION_KIND_CLASS[block.kind]
+  const inner = renderInline(block.data)
+  return `<blockquote class="${typeClass} wrap_item item_type_text" ${dataAppAttr(block)}>${inner}</blockquote>`
+}
+
 /** OG 카드 블록 렌더 */
 const renderOpengraph = (block: BrunchOpengraphBlock): string => {
   const og = block.openGraphData
@@ -116,6 +127,8 @@ const renderBlock = (block: BrunchBlock): string => {
       return renderText(block)
     case "hr":
       return renderHr(block)
+    case "quotation":
+      return renderQuotation(block)
     case "opengraph":
       return renderOpengraph(block)
   }
