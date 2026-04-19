@@ -207,6 +207,23 @@ export const setYoastMetaDesc = async (
   metaDesc: string
 ): Promise<void> => setYoastMeta(wpPostId, { _yoast_wpseo_metadesc: metaDesc })
 
+/**
+ * WP 사용자 display name 업데이트 (Ghost 이름과 일치시키기)
+ *
+ * Ghost가 단일 진실 원천 — 동명이인 구분을 위해 Ghost에 등록된 이름 그대로 사용.
+ * 예: Ghost "지정현" → WP user.name "지정현"으로 덮어쓰기.
+ */
+export const updateWpUserName = async (
+  userId: number,
+  name: string
+): Promise<void> => {
+  await wpFetch(`users/${userId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  })
+}
+
 /** WP 태그 생성 (없으면 생성, 있으면 기존 반환) */
 export const findOrCreateWpTag = async (name: string): Promise<number> => {
   const existing = await wpFetch<{ id: number }[]>(

@@ -1,6 +1,6 @@
 import { Router } from "express"
 import { fetchPostBySlug } from "../ghost-client.js"
-import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoastMeta } from "../wp-client.js"
+import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoastMeta, updateWpUserName } from "../wp-client.js"
 import { transformGhostToWp } from "../html-transformer.js"
 import { replaceImageUrls, uploadFeatureImage } from "../image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
@@ -70,6 +70,19 @@ export const syncOnePost = async (
 
   if (wpAuthorId === null) {
     return { ...base, status: "skipped_no_author", reason: `작성자 "${post.authors[0]?.name}" WP 미등록` }
+  }
+
+  // WP user display name을 Ghost 이름과 일치시킴 (동명이인 구분용, Ghost가 단일 진실 원천)
+  const ghostPrimary = post.authors[0]
+  const wpUser = wpUsers.find((u) => u.id === wpAuthorId)
+  if (ghostPrimary && wpUser && wpUser.name !== ghostPrimary.name) {
+    try {
+      await updateWpUserName(wpAuthorId, ghostPrimary.name)
+      console.log(`  WP user name 갱신: "${wpUser.name}" → "${ghostPrimary.name}" (ID: ${wpAuthorId})`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`  WP user name 갱신 실패 (ID: ${wpAuthorId}): ${msg}`)
+    }
   }
 
   if (!post.html) {

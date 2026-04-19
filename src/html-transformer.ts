@@ -438,6 +438,7 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       case "youtube": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(wpYouTubeEmbed(el.url, el.caption))
+        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
@@ -464,6 +465,7 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
       case "embed": {
         blocks.push(ref(BLOCK.SPACE_40))
         blocks.push(`<!-- wp:html -->\n<div style="text-align:center">${el.html}</div>\n<!-- /wp:html -->`)
+        blocks.push(ref(BLOCK.SPACE_40))
         lastWasInflowLink = false
         break
       }
