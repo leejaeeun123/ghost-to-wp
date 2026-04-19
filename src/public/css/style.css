@@ -357,3 +357,13 @@ tr.selected:hover { background: #e0eaff; }
 .brunch-publish-status { margin-top: 10px; font-size: 13px; }
 
 .blog-preview-empty.error { color: #c00; }
+
+/* 자동 예약된 아티클 표시 */
+.blog-row.reserved { background: #f0fbf5; border-left: 3px solid #00c896; }
+.blog-row.reserved .blog-row-title { color: #555; }
+.brunch-reserved-badge {
+  margin-top: 6px; padding: 4px 8px;
+  background: #00c896; color: #fff; border-radius: 4px;
+  font-size: 12px; display: inline-block;
+}
+.brunch-reserved-badge a { color: #fff; text-decoration: underline; }

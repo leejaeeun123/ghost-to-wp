@@ -6,10 +6,24 @@ const BlogBrunch = {
   completed: Blog.loadCompleted("brunch"),
   mondayQuery: null,
   weekLabel: null,
+  /** wpId → { brunchArticleNo, brunchUrl, publishAt, scheduleDay } */
+  reservedMap: new Map(),
 
   async init() {
     await this.refreshSession()
+    await this.loadReserved()
     await this.loadWeek()
+  },
+
+  /** 서버 state에서 이미 예약된 아티클 목록 로드 */
+  async loadReserved() {
+    try {
+      const r = await App.api("/blog/brunch/reserved")
+      this.reservedMap = new Map((r.list || []).map((e) => [String(e.wpId), e]))
+    } catch (err) {
+      console.warn("[brunch] reserved 로드 실패:", err.message)
+      this.reservedMap = new Map()
+    }
   },
 
   async refreshSession() {
@@ -81,6 +95,27 @@ const BlogBrunch = {
       this.schedule.monday, (id) => this.select(id, "monday"), this.completed)
     Blog.renderScheduleGroup(list, this.PLATFORM, "tuesday", "📅 화요일 19:00 발행",
       this.schedule.tuesday, (id) => this.select(id, "tuesday"), this.completed)
+    this.annotateReservedRows()
+  },
+
+  /** 이미 예약된 아티클 행에 배지 + 이중 발행 방지 표시 */
+  annotateReservedRows() {
+    document.querySelectorAll("#blog-brunch-list .blog-row").forEach((row) => {
+      const wpId = row.dataset.wpId
+      const entry = this.reservedMap.get(String(wpId))
+      if (!entry) return
+      row.classList.add("reserved")
+      if (row.querySelector(".brunch-reserved-badge")) return
+      const when = new Date(entry.publishAt).toLocaleString("ko-KR", {
+        timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
+      })
+      const body = row.querySelector(".blog-row-body") || row
+      const badge = document.createElement("div")
+      badge.className = "brunch-reserved-badge"
+      badge.innerHTML = `✅ 자동 예약됨 · <a href="${entry.brunchUrl}" target="_blank" rel="noopener">브런치 #${entry.brunchArticleNo}</a> · ${Blog.esc(when)} 발행`
+      badge.addEventListener("click", (e) => e.stopPropagation())
+      body.appendChild(badge)
+    })
   },
 
   async select(wpId, scheduleDay) {
@@ -89,8 +124,28 @@ const BlogBrunch = {
     if (row) row.classList.add("selected")
 
     const root = document.getElementById("blog-brunch-preview")
-    root.innerHTML = `<p class="blog-preview-empty">발행 준비 중... (이미지 다운로드, 추천 태그 조회)</p>`
 
+    // 이미 자동 예약된 아티클이면 prepare 안 태우고 안내만
+    const reserved = this.reservedMap.get(String(wpId))
+    if (reserved) {
+      const when = new Date(reserved.publishAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })
+      root.innerHTML = `
+        <div class="blog-preview-header">
+          <div class="blog-preview-title">이미 자동 예약됨</div>
+        </div>
+        <p class="blog-preview-empty">
+          이 아티클은 자동 스케줄러가 이미 브런치에 예약해두었습니다.<br>
+          수동으로 다시 발행하면 중복이 됩니다.
+        </p>
+        <div class="blog-preview-meta">
+          <div class="blog-meta-row"><span class="blog-meta-label">브런치</span><span><a href="${reserved.brunchUrl}" target="_blank" rel="noopener">#${reserved.brunchArticleNo}</a></span></div>
+          <div class="blog-meta-row"><span class="blog-meta-label">예약 시각</span><span>${Blog.esc(when)}</span></div>
+          <div class="blog-meta-row"><span class="blog-meta-label">요일</span><span>${reserved.scheduleDay === "monday" ? "월요일" : "화요일"}</span></div>
+        </div>`
+      return
+    }
+
+    root.innerHTML = `<p class="blog-preview-empty">발행 준비 중... (이미지 다운로드, 추천 태그 조회)</p>`
     try {
       const data = await App.api(`/blog/brunch/prepare/${wpId}?monday=${this.mondayQuery}`, { method: "POST", body: "{}" })
       this.prepared.set(wpId, { data, scheduleDay })
