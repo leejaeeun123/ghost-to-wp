@@ -4,6 +4,7 @@ dist/
 *.log
 .brunch-session.json
 .brunch-publish-state.json
+.naver-tokens.json
 brunch-failed-content.html
 brunch-failed-payload.json
 brunch-articleno-debug.json

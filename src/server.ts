@@ -9,6 +9,7 @@ import { syncRoutes } from "./routes/sync-routes.js"
 import { wpRoutes } from "./routes/wp-routes.js"
 import { blogRoutes } from "./routes/blog-routes.js"
 import { brunchRoutes } from "./routes/brunch-routes.js"
+import { naverRoutes } from "./routes/naver-routes.js"
 import { runScheduledSync } from "./scheduled-sync.js"
 import { runBrunchAutoReserve } from "./blog-format/brunch-auto-publish.js"
 
@@ -27,6 +28,7 @@ app.use("/api/wp", wpRoutes)
 // brunchRoutes는 blogRoutes보다 먼저 마운트해야 /brunch/:wpId 폴백 핸들러에 가로채지지 않는다.
 app.use("/api/blog/brunch", brunchRoutes)
 app.use("/api/blog", blogRoutes)
+app.use("/api/naver", naverRoutes)
 
 app.listen(PORT, () => {
   console.log(`\n  ANTIEGG 웹 업로드 AX`)
