@@ -1,9 +1,8 @@
 <section class="slide cover">
-  <div class="kicker">NAVER LOGIN API — 검수 승인 재신청</div>
-  <h1>ANTIEGG 매거진<br/>네이버 블로그<br/>자동 발행 도구</h1>
-  <h2>Service Introduction Deck</h2>
+  <div class="kicker">NAVER LOGIN API</div>
+  <h1>ANTIEGG 매거진<br/>네이버 블로그 자동 발행 도구<br/>서비스 소개서</h1>
   <div class="meta">
-    <strong>작성일</strong> &nbsp; 2026.04.21<br/>
+    <strong>작성일</strong> &nbsp; 2026.04.22<br/>
     <strong>작성자</strong> &nbsp; ANTIEGG팀<br/>
     <strong>문의</strong> &nbsp; editor@antiegg.kr
   </div>
@@ -15,7 +14,6 @@
     <div class="slide-pageno">02 / 16</div>
   </div>
   <h2 class="slide-title">문서 구성</h2>
-  <p class="slide-subtitle">네이버 심사팀이 요청하신 항목을 순서대로 구성했습니다.</p>
   <div class="content">
     <div class="toc-grid">
       <div class="toc-item"><span class="toc-num">01</span><span class="toc-text">서비스 개요 및 본질</span></div>
@@ -43,7 +41,7 @@
       <tr><td>서비스명</td><td>ANTIEGG 매거진 네이버 블로그 자동 예약 발행 도구</td></tr>
       <tr><td>운영 주체</td><td>ANTIEGG (사업자 등록 법인 · 프리랜서 에디터 공동체)</td></tr>
       <tr><td>서비스 성격</td><td><span class="badge">관리자 전용 내부 운영 도구</span> — 외부 사용자 없음</td></tr>
-      <tr><td>대상 블로그</td><td>https://blog.naver.com/antiegg (ANTIEGG 공식 블로그 단 1개)</td></tr>
+      <tr><td>대상 블로그</td><td><a class="link" href="https://blog.naver.com/antiegg">https://blog.naver.com/antiegg</a> (ANTIEGG 공식 블로그 단 1개)</td></tr>
       <tr><td>발행 빈도</td><td>주 2회 — 매주 월요일·화요일 19:00 자동 예약 발행</td></tr>
       <tr><td>사용자 수</td><td>ANTIEGG 매거진 운영팀 내부 담당자 1~2명</td></tr>
       <tr><td>앱 개설자 계정</td><td>ANTIEGG 운영 담당자의 네이버 개인 계정<br/>실명 <strong>이준용</strong> · 프로필 별명 <strong>이형운</strong> (ANTIEGG 대표)</td></tr>
@@ -169,7 +167,7 @@
       </div>
     </div>
     <div class="callout green">
-      모든 게시글은 <strong>antiegg.kr 원문으로의 유입을 유도하는 티저 형태</strong>이며, ANTIEGG 매거진 에디터가 직접 작성한 오리지널 콘텐츠입니다.
+      모든 게시글은 <strong><a class="link" href="https://antiegg.kr">https://antiegg.kr</a> 원문으로의 유입을 유도하는 티저 형태</strong>이며, ANTIEGG 매거진 에디터가 직접 작성한 오리지널 콘텐츠입니다.
     </div>
   </div>
   <div class="slide-footer"><span><strong>ANTIEGG</strong></span><span>editor@antiegg.kr</span></div>
@@ -187,13 +185,13 @@
       <tr><th>카테고리</th><th>발행 URL</th><th>비고</th></tr>
       <tr>
         <td><span class="badge">큐레이션</span></td>
-        <td>https://blog.naver.com/antiegg/224253806102</td>
-        <td>주중 정규 발행 아티클 샘플</td>
+        <td><a class="link" href="https://blog.naver.com/antiegg/224253806102">https://blog.naver.com/antiegg/224253806102</a></td>
+        <td>(평일) 정규 발행 아티클 샘플, 문화예술계 내 유용한 정보들을 소개 아티클</td>
       </tr>
       <tr>
         <td><span class="badge">그레이</span></td>
-        <td>https://blog.naver.com/antiegg/224253777276</td>
-        <td>주간 마감 아티클 샘플</td>
+        <td><a class="link" href="https://blog.naver.com/antiegg/224253777276">https://blog.naver.com/antiegg/224253777276</a></td>
+        <td>(주말) 정규 발행 아티클 샘플, 문화예술을 둘러싼 다양한 질문 및 탐구 아티클</td>
       </tr>
     </table>
     <h4>발행 이력</h4>
