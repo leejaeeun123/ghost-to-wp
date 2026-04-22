@@ -4,18 +4,34 @@ const BlogNaver = {
   schedule: null,
   formatted: new Map(), // wpId -> FormattedArticle
   completed: Blog.loadCompleted("naver"),
+  mondayQuery: null,
 
-  async loadWeek(fresh = false) {
-    const url = fresh ? "/blog/week?fresh=1" : "/blog/week"
+  async loadWeek(fresh = false, mondayOverride = null) {
+    const monday = mondayOverride ?? this.mondayQuery
+    const params = []
+    if (monday) params.push(`monday=${monday}`)
+    if (fresh) params.push("fresh=1")
+    const url = "/blog/week" + (params.length ? "?" + params.join("&") : "")
     try {
       const data = await App.api(url)
       this.schedule = data.schedule
+      this.mondayQuery = data.range.mondayLabel
+      this.formatted.clear()
       document.getElementById("blog-naver-week").textContent =
         `${data.range.weekLabel} · 총 ${data.total}건`
       this.render()
     } catch (err) {
       App.toast(err.message, "error")
     }
+  },
+
+  shiftWeek(days) {
+    if (!this.mondayQuery) return
+    const d = new Date(this.mondayQuery + "T00:00:00+09:00")
+    d.setUTCDate(d.getUTCDate() + days)
+    const pad = (n) => String(n).padStart(2, "0")
+    const next = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+    this.loadWeek(false, next)
   },
 
   render() {
@@ -47,7 +63,8 @@ const BlogNaver = {
     let formatted = this.formatted.get(wpId)
     if (!formatted) {
       try {
-        formatted = await App.api(`/blog/naver/${wpId}`)
+        const q = this.mondayQuery ? `?monday=${this.mondayQuery}` : ""
+        formatted = await App.api(`/blog/naver/${wpId}${q}`)
         this.formatted.set(wpId, formatted)
       } catch (err) {
         App.toast(err.message, "error")
@@ -103,6 +120,8 @@ const BlogNaver = {
 }
 
 document.getElementById("btn-blog-naver-refresh").addEventListener("click", () => BlogNaver.loadWeek(true))
+document.getElementById("btn-blog-naver-prev").addEventListener("click", () => BlogNaver.shiftWeek(-7))
+document.getElementById("btn-blog-naver-next").addEventListener("click", () => BlogNaver.shiftWeek(7))
 
 // 첫 탭 클릭 시 lazy load
 let blogNaverLoaded = false

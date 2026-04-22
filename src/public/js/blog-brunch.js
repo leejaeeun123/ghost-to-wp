@@ -72,19 +72,33 @@ const BlogBrunch = {
     }
   },
 
-  async loadWeek(fresh = false) {
-    const url = fresh ? "/blog/week?fresh=1" : "/blog/week"
+  async loadWeek(fresh = false, mondayOverride = null) {
+    const monday = mondayOverride ?? this.mondayQuery
+    const params = []
+    if (monday) params.push(`monday=${monday}`)
+    if (fresh) params.push("fresh=1")
+    const url = "/blog/week" + (params.length ? "?" + params.join("&") : "")
     try {
       const data = await App.api(url)
       this.schedule = data.schedule
       this.mondayQuery = data.range.mondayLabel
       this.weekLabel = data.range.weekLabel
+      this.prepared.clear()
       document.getElementById("blog-brunch-week").textContent =
         `${data.range.weekLabel} · 총 ${data.total}건`
       this.render()
     } catch (err) {
       App.toast(err.message, "error")
     }
+  },
+
+  shiftWeek(days) {
+    if (!this.mondayQuery) return
+    const d = new Date(this.mondayQuery + "T00:00:00+09:00")
+    d.setUTCDate(d.getUTCDate() + days)
+    const pad = (n) => String(n).padStart(2, "0")
+    const next = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+    this.loadWeek(false, next)
   },
 
   render() {
@@ -325,6 +339,8 @@ const BlogBrunch = {
 }
 
 document.getElementById("btn-blog-brunch-refresh").addEventListener("click", () => BlogBrunch.loadWeek(true))
+document.getElementById("btn-blog-brunch-prev").addEventListener("click", () => BlogBrunch.shiftWeek(-7))
+document.getElementById("btn-blog-brunch-next").addEventListener("click", () => BlogBrunch.shiftWeek(7))
 document.getElementById("btn-brunch-session-cancel").addEventListener("click", () => BlogBrunch.closeSessionModal())
 document.getElementById("btn-brunch-session-save").addEventListener("click", () => BlogBrunch.saveSession())
 
