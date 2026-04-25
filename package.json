@@ -9,7 +9,23 @@
     "sync:all": "tsx src/index.ts --all",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/server.ts",
-    "auto-sync": "tsx src/scheduled-sync.ts"
+    "auto-sync": "tsx src/scheduled-sync.ts",
+    "naver:bootstrap": "tsx scripts/naver-poc/bootstrap-session.ts",
+    "naver:probe": "tsx scripts/naver-poc/probe.ts",
+    "naver:probe2": "tsx scripts/naver-poc/probe2.ts",
+    "naver:probe3": "tsx scripts/naver-poc/probe3.ts",
+    "naver:fill": "tsx scripts/naver-poc/fill-and-autosave.ts",
+    "naver:fill2": "tsx scripts/naver-poc/fill-v2.ts",
+    "naver:fill3": "tsx scripts/naver-poc/fill-v3.ts",
+    "naver:fill4": "tsx scripts/naver-poc/fill-v4.ts",
+    "naver:modal": "tsx scripts/naver-poc/publish-modal-probe.ts",
+    "naver:dropdown": "tsx scripts/naver-poc/dropdown-probe.ts",
+    "naver:dropdown2": "tsx scripts/naver-poc/dropdown-probe-v2.ts",
+    "naver:publish-dry": "tsx scripts/naver-poc/publish-test.ts",
+    "naver:publish-real": "tsx scripts/naver-poc/publish-test.ts --publish",
+    "naver:cli": "tsx scripts/naver-poc/publish-cli.ts",
+    "naver:align-diagnose": "tsx scripts/naver-poc/align-diagnose.ts",
+    "naver:paste-debug": "tsx scripts/naver-poc/paste-debug.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.0",
@@ -24,6 +40,7 @@
     "@types/node": "^22.0.0",
     "@types/node-cron": "^3.0.11",
     "@types/sharp": "^0.31.1",
+    "playwright": "^1.59.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }
