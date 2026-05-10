@@ -17,6 +17,7 @@ import { getReservedEntry, markReserved } from "./brunch-publish-state.js"
 import {
   addNotionRichComment,
   fetchArticlesForWeek,
+  findNotionUserId,
   type NotionArticle,
 } from "../notion-client.js"
 
@@ -178,15 +179,25 @@ const notifySessionExpired = async (
     console.warn("[BRUNCH AUTO] 세션 만료 — Notion 페이지 찾지 못해 알림 스킵")
     return false
   }
-  const richText: Array<Record<string, unknown>> = [
-    { text: { content: "@이재은 " } },
-    {
-      text: {
-        content:
-          "🚨 브런치 세션 만료 — 갱신 필요. 웹 업로드 AX > 브런치 탭 > 세션 갱신에서 cURL 붙여넣기 해주세요. (자동 예약이 실패한 아티클은 다음 실행에서 재시도됩니다)",
-      },
-    },
-  ]
+  // Notion 멘션은 mention 객체로 보내야 실제 알림 트리거됨. plaintext "@이재은"은 표시는
+  // 되지만 알림이 안 옴. user ID 조회 실패 시 plaintext 폴백.
+  const userId = await findNotionUserId("이재은")
+  const messageContent =
+    " 🚨 브런치 세션 만료 — 갱신 필요. 웹 업로드 AX > 브런치 탭 > 세션 갱신에서 cURL 붙여넣기 해주세요. (자동 예약이 실패한 아티클은 다음 실행에서 재시도됩니다)"
+  const richText: Array<Record<string, unknown>> = userId
+    ? [
+        {
+          type: "mention",
+          mention: { type: "user", user: { id: userId } },
+        },
+        { type: "text", text: { content: messageContent } },
+      ]
+    : [
+        {
+          type: "text",
+          text: { content: `@이재은${messageContent}` },
+        },
+      ]
   let anyOk = false
   for (const pageId of targets) {
     const ok = await addNotionRichComment(pageId, richText)

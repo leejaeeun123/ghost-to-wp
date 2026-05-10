@@ -220,6 +220,44 @@ export const addNotionComment = async (
   }
 }
 
+/**
+ * Notion 워크스페이스의 사용자 목록에서 표시 이름으로 user ID 조회.
+ * 첫 호출 시 users.list를 한 번만 가져와 모듈 캐시. 댓글 멘션 객체용 user.id 추출에 사용.
+ * 동일 이름이 여럿이면 첫 매칭 반환.
+ */
+let _userIdCache: Map<string, string> | null = null
+
+export const findNotionUserId = async (
+  displayName: string,
+): Promise<string | null> => {
+  const config = getNotionConfig()
+  if (!config) return null
+
+  if (_userIdCache?.has(displayName)) {
+    return _userIdCache.get(displayName) ?? null
+  }
+
+  try {
+    const data = await notionFetch<{
+      results: Array<{ id: string; name: string; type: string }>
+    }>("/users", config.apiKey)
+
+    _userIdCache = new Map()
+    for (const user of data.results) {
+      if (user.type === "person" && user.name) {
+        _userIdCache.set(user.name, user.id)
+      }
+    }
+    return _userIdCache.get(displayName) ?? null
+  } catch (err) {
+    console.error(
+      `  Notion users.list 실패:`,
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
 /** Notion 페이지에 임의의 rich_text 댓글 추가 — 멘션/링크 자유 구성용 */
 export const addNotionRichComment = async (
   pageId: string,
