@@ -63,6 +63,12 @@ export interface FormattedArticle {
      * 변환한 후, 같은 URL을 가진 paragraph를 oglink 컴포넌트로 교체한다.
      */
     naverOglinkUrls?: string[]
+    /**
+     * naverOglinkUrls 중 썸네일 없이 카드만 보여주고 싶은 URL.
+     * (예: antiegg.kr 홈은 텍스트 카드로만 표시) publisher가 이 URL의 oglink
+     * 컴포넌트에서 thumbnail 필드를 제거.
+     */
+    naverNoThumbnailUrls?: string[]
     /** 브런치 키워드 3개 */
     brunchKeywords?: string[]
     /** 사용자 안내 메모 (예: 주제 수동 선택) */

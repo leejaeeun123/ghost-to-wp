@@ -44,6 +44,7 @@ const URL_TO_PASTE = "https://antiegg.kr/33926/";
       captures.push({
         url,
         method: req.method(),
+        headers: req.headers(),
         postPreview: req.postData()?.slice(0, 600),
         ts: Date.now(),
       });

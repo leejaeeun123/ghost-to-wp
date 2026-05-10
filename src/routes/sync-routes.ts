@@ -119,10 +119,11 @@ export const syncOnePost = async (
       ? mapCategoriesFromNotion(notionArticle.categories)
       : { categoryIds: mapCategories(post.tags), primaryId: 0 }
 
-  // 태그: Ghost 태그 + Notion 테마/키워드/기타
+  // 태그: Ghost 태그 + Notion 5필드 통합 (콘텐츠 종류 제외 — 그건 그레이/큐레이션 플래그)
   // 큐레이션/그레이 카테고리에서는 ANTIEGG 태그를 제외 (기타 태그로 들어와도 WP에는 빼고 발행)
   const ghostTagNames = extractWpTags(post.tags)
   const notionTagNames = [
+    ...(notionArticle?.categories ?? []),  // 🔴 카테고리 — 태그로도 사용 (서브카테고리 검색용)
     ...(notionArticle?.themes ?? []),
     ...(notionArticle?.keywords ?? []),
     ...(notionArticle?.extras ?? []),

@@ -32,6 +32,11 @@ export interface NaverPublishOptions {
    * 컴포넌트로 변환한 후 ourComponents의 동일 URL paragraph 자리에 삽입.
    */
   oglinkUrls?: string[];
+  /**
+   * oglinkUrls 중 oglink 컴포넌트의 thumbnail 필드를 제거할 URL 목록.
+   * (썸네일 없이 텍스트 카드로만 보여주고 싶은 URL)
+   */
+  noThumbnailUrls?: string[];
   headless?: boolean;
 }
 
@@ -265,31 +270,82 @@ function sanitizeNaverTag(tag: string): string {
   return tag.replace(/[^가-힣a-zA-Z0-9 ]/g, "").trim();
 }
 
-// SE3 OG card metadata via the platform.editor.naver.com endpoint we identified
-// from the paste-flow capture. Returns the `oglink` object from the response
-// (contains summary{domain,url,title,description,image} plus optional sign).
+// SE3 OG card metadata via the platform.editor.naver.com endpoint.
+// 401 "the token must not be empty" 우회: paste 흐름에서 자동 첨부되는 SE3 인증
+// 헤더(se-authorization JWT + se-app-id)를 SmartEditor 인스턴스에서 추출 후 부착.
 const FETCH_OG_FN = `
   (async (url) => {
+    var headers = { Accept: "application/json" };
+
+    function findInObject(obj, predicate, depth) {
+      if (depth > 6 || !obj) return null;
+      var keys;
+      try { keys = Object.keys(obj); } catch (_) { return null; }
+      for (var i = 0; i < keys.length; i++) {
+        var v;
+        try { v = obj[keys[i]]; } catch (_) { continue; }
+        if (typeof v === "string" && predicate(v)) return v;
+      }
+      for (var j = 0; j < keys.length; j++) {
+        var w;
+        try { w = obj[keys[j]]; } catch (_) { continue; }
+        if (w && typeof w === "object") {
+          var r = findInObject(w, predicate, depth + 1);
+          if (r) return r;
+        }
+      }
+      return null;
+    }
+
+    var ed = window.SmartEditor && window.SmartEditor._editors;
+    if (ed) {
+      var firstKey = Object.keys(ed)[0];
+      var inst = firstKey ? ed[firstKey] : null;
+      if (inst) {
+        var jwt = findInObject(inst, function (s) { return /^eyJ[A-Za-z0-9_-]+\\.eyJ/.test(s); }, 0);
+        if (jwt) headers["se-authorization"] = jwt;
+        var appId = findInObject(inst, function (s) { return /^SE-[A-Fa-f0-9-]{30,}/.test(s); }, 0);
+        if (appId) headers["se-app-id"] = appId;
+      }
+    }
+
     var endpoint = "https://platform.editor.naver.com/api/blogpc001/v1/oglink?url=" + encodeURIComponent(url);
     try {
-      var res = await fetch(endpoint, { credentials: "include" });
-      var json = await res.json();
-      return { ok: res.ok, status: res.status, oglink: json && json.oglink };
+      var res = await fetch(endpoint, { credentials: "include", headers: headers });
+      var text = await res.text();
+      var parsed = null;
+      try { parsed = JSON.parse(text); } catch (_) {}
+      return {
+        ok: res.ok,
+        status: res.status,
+        oglink: parsed && parsed.oglink,
+        parsed: parsed,
+        body: text.slice(0, 1500),
+        usedHeaders: { hasAuth: !!headers["se-authorization"], hasAppId: !!headers["se-app-id"] },
+      };
     } catch (e) {
       return { error: String(e) };
     }
   })
 `;
 
-async function fetchOglinkMeta(page: Page, url: string): Promise<any | null> {
+async function fetchOglinkMeta(
+  page: Page,
+  url: string,
+): Promise<{ meta: any | null; sign: string | null; raw: any }> {
   const result: any = await page.evaluate(
     `${FETCH_OG_FN}(${JSON.stringify(url)})`,
   );
-  if (!result?.ok || !result.oglink?.summary) return null;
-  return result.oglink;
+  if (!result?.ok || !result.oglink?.summary) {
+    return { meta: null, sign: null, raw: result };
+  }
+  // oglinkSign은 응답 최상위(parsed.oglinkSign)에 있음 — oglink 객체가 아니라
+  // parsed에서 직접 추출. 백엔드 검증 시 oglinkSign 필수.
+  const sign = result.parsed?.oglinkSign ?? null;
+  return { meta: result.oglink, sign, raw: result };
 }
 
-function buildOglinkComponent(meta: any): any {
+function buildOglinkComponent(meta: any, sign: string | null): any {
   const summary = meta.summary;
   const oglink: any = {
     "@ctype": "oglink",
@@ -310,9 +366,6 @@ function buildOglinkComponent(meta: any): any {
       height: summary.image.height,
     };
   }
-  // SE3 may attach an oglinkSign verification token. If the API returned one,
-  // pass it through; otherwise omit (backend may still accept).
-  const sign = meta.oglinkSign || meta.sign;
   if (sign) oglink.oglinkSign = sign;
   return oglink;
 }
@@ -459,15 +512,39 @@ export async function publishToNaver(
     // splice an oglink component into ourComponents wherever that URL appears
     // as a standalone paragraph.
     let finalComponents: any[] = ourComponents;
+    const oglinkFetchLog: Array<{ url: string; raw: any; matched: boolean }> = [];
     if (options.oglinkUrls?.length) {
       const urlToOglink = new Map<string, any>();
+      const noThumbSet = new Set(options.noThumbnailUrls ?? []);
       for (const url of options.oglinkUrls) {
-        const meta = await fetchOglinkMeta(page, url);
-        if (meta) urlToOglink.set(url, buildOglinkComponent(meta));
+        const { meta, sign, raw } = await fetchOglinkMeta(page, url);
+        oglinkFetchLog.push({ url, raw, matched: !!meta });
+        if (meta) {
+          const comp = buildOglinkComponent(meta, sign);
+          if (noThumbSet.has(url)) delete comp.thumbnail;
+          urlToOglink.set(url, comp);
+        }
       }
       if (urlToOglink.size > 0) {
         finalComponents = spliceOglinks(ourComponents, urlToOglink);
       }
+      // 진단용 dump — 응답 구조 / 매칭 실패 원인 추적
+      try {
+        writeFileSync(
+          resolve(process.cwd(), ".naver-debug-oglink-fetch.json"),
+          JSON.stringify(
+            {
+              oglinkUrls: options.oglinkUrls,
+              fetchedCount: oglinkFetchLog.length,
+              matchedCount: urlToOglink.size,
+              log: oglinkFetchLog,
+            },
+            null,
+            2,
+          ),
+          "utf8",
+        );
+      } catch {}
     }
 
     const swap = await installSwapInterceptor(page, finalComponents);

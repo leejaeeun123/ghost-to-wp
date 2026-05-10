@@ -93,6 +93,7 @@ async function findArticle(): Promise<WeekArticle | null> {
     tags: formatted.meta.naverTags,
     dividerLayouts: formatted.meta.naverDividerLayouts,
     oglinkUrls: formatted.meta.naverOglinkUrls,
+    noThumbnailUrls: formatted.meta.naverNoThumbnailUrls,
   });
   console.log("\n[real] result:", JSON.stringify(result, null, 2));
   process.exit(result.success ? 0 : 1);

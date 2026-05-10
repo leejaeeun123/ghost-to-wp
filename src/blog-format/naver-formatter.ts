@@ -65,16 +65,21 @@ const ctaAboutAntiegg = (): string =>
 /**
  * 네이버 블로그 태그 자동 생성.
  *
- * WP 태그는 sync-routes.ts에서 이미 Notion 5필드(콘텐츠 종류·카테고리·테마·키워드·기타) 통합본으로 동기화됨.
- * 따라서 article.tags 하나면 충분 — Notion 필드를 따로 합치지 않는다.
+ * 정상 흐름: sync-routes.ts가 Notion 4필드(🔴 카테고리·🔴 테마·🔴 키워드·기타)를 WP 태그로 통합 동기화.
+ * 따라서 article.tags 하나로 충분.
+ *
+ * 단, sync-routes.ts 수정 이전에 동기화된 아티클은 🔴 카테고리가 WP 태그에 없을 수 있어
+ * article.notionCategories를 폴백으로 직접 합쳐 누락 방지. Set dedup으로 중복 제거됨.
  *   필수: ANTIEGG, antiegg, 안티에그
  *   + article.category(큐레이션|그레이) prefix
+ *   + ...article.notionCategories (기존 동기화 아티클 폴백)
  *   + ...article.tags
  */
 const buildNaverTags = (article: WeekArticle): string[] => {
   const merged = [
     "ANTIEGG", "antiegg", "안티에그",
     article.category,
+    ...(article.notionCategories ?? []),
     ...article.tags,
   ]
   return [...new Set(merged.filter(Boolean))]
@@ -98,6 +103,8 @@ export const formatForNaver = (article: WeekArticle): FormattedArticle => {
 
   // OG 카드로 변환할 URL 시퀀스 (등장 순서). swap 흐름에서 oglink 컴포넌트로 교체.
   const naverOglinkUrls: string[] = []
+  // 썸네일 제외하고 텍스트 카드로만 보여줄 URL (재은님 요청: antiegg.kr 홈)
+  const naverNoThumbnailUrls: string[] = [ANTIEGG_HOME]
   const pushOglink = (url: string): string => {
     naverOglinkUrls.push(url)
     return oglinkCard(url)
@@ -147,6 +154,7 @@ export const formatForNaver = (article: WeekArticle): FormattedArticle => {
       naverTags: buildNaverTags(article),
       naverDividerLayouts,
       naverOglinkUrls,
+      naverNoThumbnailUrls,
       notes,
     },
     html,
