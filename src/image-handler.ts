@@ -10,6 +10,8 @@ interface ImageDimensions {
 /**
  * 이미지 URL에서 다운로드 → WP 미디어 라이브러리 업로드
  * → 새 WP URL 반환
+ *
+ * webp 파일은 jpg로 변환 후 업로드 (CMS에서 webp 업로드되어도 WP에는 jpg로 게시)
  */
 export const downloadAndUpload = async (
   imageUrl: string
@@ -19,11 +21,19 @@ export const downloadAndUpload = async (
     throw new Error(`이미지 다운로드 실패: ${imageUrl} (${res.status})`)
   }
 
-  const buffer = Buffer.from(await res.arrayBuffer())
-  const contentType = res.headers.get("content-type") ?? "image/jpeg"
-  const filename = ensureExtension(extractFilename(imageUrl), contentType)
+  const original = Buffer.from(await res.arrayBuffer())
+  let contentType = res.headers.get("content-type") ?? "image/jpeg"
+  let filename = ensureExtension(extractFilename(imageUrl), contentType)
+  let payload: Buffer = original
 
-  return uploadWpMedia(buffer, filename, contentType)
+  if (contentType === "image/webp" || /\.webp$/i.test(filename)) {
+    payload = await sharp(original).jpeg({ quality: 90 }).toBuffer()
+    contentType = "image/jpeg"
+    filename = filename.replace(/\.webp$/i, ".jpg")
+    if (!/\.(jpe?g)$/i.test(filename)) filename += ".jpg"
+  }
+
+  return uploadWpMedia(payload, filename, contentType)
 }
 
 /**

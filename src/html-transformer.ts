@@ -76,18 +76,33 @@ const wpImage = (src: string, width: number, caption?: string): string => {
   ].join("\n")
 }
 
-/** 캡션 정규화: "출처" 포함 시 "이미지 출처 : ..." prefix 강제, < > → ' ' 치환 */
-const normalizeCaption = (raw: string): string => {
-  const cleaned = raw.replace(/[<>]/g, "'").trim()
-  if (!cleaned) return cleaned
-  if (/출처/.test(cleaned)) {
-    if (cleaned.startsWith("이미지 출처")) return cleaned
-    const stripped = cleaned
-      .replace(/^이미지\s*/, "")
-      .replace(/^출처\s*[:：]?\s*/, "")
-    return `이미지 출처 : ${stripped}`
+/**
+ * 캡션 정규화
+ * - 이미지: "이미지 출처 : ..." / 동영상: "동영상 출처 : ..."
+ * - 캡션 안에 이미 "이미지 출처" 또는 "동영상 출처" 표기가 있으면 그대로 둠 (중복 방지)
+ * - "출처: ..." 단독 표기만 있을 때 미디어 타입에 맞춰 prefix 정규화
+ * - 본문에 "출처"라는 단어가 들어 있어도 prefix는 추가하지 않음
+ * - 모든 인라인 태그 strip (a 태그 등 포함, 아티클 내 하이퍼링크 금지 규칙)
+ * - < > → ' ' 치환
+ */
+const normalizeCaption = (raw: string, mediaType: "image" | "video" = "image"): string => {
+  const stripped = raw.replace(/<[^>]+>/g, "").replace(/[<>]/g, "'").trim()
+  if (!stripped) return stripped
+
+  const prefix = mediaType === "video" ? "동영상 출처" : "이미지 출처"
+
+  // 이미 "이미지 출처" 또는 "동영상 출처" 표기가 어디든 포함되어 있으면 그대로 (중복 방지)
+  if (/(?:이미지|동영상)\s*출처/.test(stripped)) {
+    return stripped
   }
-  return cleaned
+
+  // "출처: ..." 단독 시작 → 미디어 타입에 맞게 prefix 정규화
+  const sourceOnlyMatch = stripped.match(/^출처\s*[:：]\s*(.+)$/)
+  if (sourceOnlyMatch) {
+    return `${prefix} : ${sourceOnlyMatch[1].trim()}`
+  }
+
+  return stripped
 }
 
 const wpQuote = (text: string, source?: string): string => {
@@ -104,8 +119,8 @@ const wpQuote = (text: string, source?: string): string => {
 const wpList = (items: string[]): string => {
   const lis = items.map((item) => `  <li>${item}</li>`).join("\n")
   return [
-    `<!-- wp:list {"style":{"typography":{"fontSize":"14px"},"elements":{"link":{"color":{"text":"#9d9d9d"}}},"color":{"text":"#9d9d9d"}}} -->`,
-    `<ul style="color:#9d9d9d;font-size:14px" class="wp-block-list has-text-color has-link-color">`,
+    `<!-- wp:list {"style":{"elements":{"link":{"color":{"text":"#9d9d9d"}}},"color":{"text":"#9d9d9d"}}} -->`,
+    `<ul style="color:#9d9d9d" class="wp-block-list has-text-color has-link-color">`,
     lis,
     `</ul>`,
     `<!-- /wp:list -->`,
@@ -131,12 +146,23 @@ const isActionText = (text: string): boolean =>
   /(?:하러\s*(?:가기|보기)|가기|보기|보러|읽으러|시청하러|플레이하러|확인하러|신청하러|구매하러)\s*$/.test(text)
 
 /**
+ * 브랜드명 정규화: 끝의 "(공식) 웹사이트/사이트/홈페이지" 접미사 제거
+ * 예: "타이거모닝 웹사이트" → "타이거모닝", "안티에그 공식 홈페이지" → "안티에그"
+ */
+const stripWebsiteSuffix = (text: string): string =>
+  text
+    .trim()
+    .replace(/\s*(?:공식\s*)?(?:웹\s*사이트|웹사이트|홈페이지|사이트)\s*$/i, "")
+    .trim()
+
+/**
  * 유입링크 분류 + WP 포맷팅
  *
  * WP 실제 패턴 기반:
  * - Instagram URL → INSTAGRAM : @username (원본 텍스트 무시)
  * - 행동 유도 텍스트(~가기/~보기) → 원본 텍스트 유지
- * - 북마크 타이틀 있음 → WEBSITE : [타이틀]
+ * - "WEBSITE :" prefix 이미 있음 → 브랜드명만 정규화하고 prefix 중복 X
+ * - 북마크 타이틀 있음 → WEBSITE : [브랜드명] (접미사 제거)
  * - 텍스트 없음(URL만) → WEBSITE : [도메인명]
  */
 const classifyInflowLink = (href: string, originalText: string): InflowLinkInfo => {
@@ -155,9 +181,12 @@ const classifyInflowLink = (href: string, originalText: string): InflowLinkInfo 
       return { href, text: originalText, sortOrder: 2 }
     }
 
-    // 북마크 타이틀 있음 → WEBSITE : 타이틀
+    // 북마크 타이틀 있음 → WEBSITE : 브랜드명
     if (originalText && originalText !== href && !originalText.startsWith("http")) {
-      return { href, text: `WEBSITE : ${originalText}`, sortOrder: 0 }
+      // 이미 "WEBSITE :" prefix가 있으면 prefix 중복 X
+      const existingPrefix = originalText.match(/^WEBSITE\s*[:：]\s*(.+)$/i)
+      const brand = stripWebsiteSuffix(existingPrefix ? existingPrefix[1] : originalText)
+      return { href, text: `WEBSITE : ${brand}`, sortOrder: 0 }
     }
 
     // 텍스트 없음 → WEBSITE : 도메인명
@@ -342,10 +371,13 @@ export const transformGhostToWp = (ghostHtml: string, wpAuthorId?: number): stri
           // H3 연속 2개 이상이면 다음 제목 위 70px, 첫 H3은 40px
           blocks.push(h3CountInSection >= 2 ? ref(BLOCK.SPACE_70) : ref(BLOCK.SPACE_40))
           blocks.push(wpHeadingH3(el.text))
+          // H3 아래 40px 여백 (다음 요소가 자체 spacer를 push해도 dedup으로 한 번만 남음)
+          blocks.push(ref(BLOCK.SPACE_40))
         } else {
           // level 4 (또는 그 이상)
           blocks.push(ref(BLOCK.SPACE_40))
           blocks.push(wpHeadingH4(el.text))
+          blocks.push(ref(BLOCK.SPACE_40))
         }
         lastWasInflowLink = false
         break
@@ -701,10 +733,11 @@ class GhostHtmlParser {
   private parseHeading(html: string): ParsedElement {
     const levelMatch = html.match(/^<h(\d)/i)
     const level = levelMatch ? parseInt(levelMatch[1]) : 2
-    // 본문 헤딩에서는 < > 그대로 유지 (엔티티만 복원)
+    // 본문 헤딩에서는 < > 그대로 유지 (엔티티만 복원), 하이퍼링크는 텍스트만 남김
     const text = html
       .replace(/<\/?h[1-6][^>]*>/gi, "")
       .replace(/<\/?strong>/gi, "")
+      .replace(/<a\s+[^>]*>([\s\S]*?)<\/a>/gi, "$1")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .trim()
@@ -725,7 +758,7 @@ class GhostHtmlParser {
         const rawCap = captionMatch
           ? captionMatch[1].replace(/<[^>]+>/g, "").replace(/&lt;/g, "'").replace(/&gt;/g, "'").trim()
           : ""
-        const caption = rawCap ? normalizeCaption(rawCap) : undefined
+        const caption = rawCap ? normalizeCaption(rawCap, "video") : undefined
         return { type: "youtube", url, caption }
       }
       return { type: "embed", html }
@@ -779,7 +812,9 @@ class GhostHtmlParser {
     let match: RegExpExecArray | null
 
     while ((match = liPattern.exec(html)) !== null) {
-      items.push(match[1].trim())
+      // 리스트 항목 내 하이퍼링크는 텍스트만 남김 (아티클 내 하이퍼링크 금지)
+      const item = match[1].trim().replace(/<a\s+[^>]*>([\s\S]*?)<\/a>/gi, "$1")
+      items.push(item)
     }
 
     return { type: "list", items }

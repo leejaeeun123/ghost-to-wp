@@ -1,6 +1,6 @@
 import { Router } from "express"
 import { fetchPostBySlug } from "../ghost-client.js"
-import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoastMeta, updateWpUserName } from "../wp-client.js"
+import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoastMeta } from "../wp-client.js"
 import { transformGhostToWp } from "../html-transformer.js"
 import { replaceImageUrls, uploadFeatureImage } from "../image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
@@ -72,18 +72,8 @@ export const syncOnePost = async (
     return { ...base, status: "skipped_no_author", reason: `작성자 "${post.authors[0]?.name}" WP 미등록` }
   }
 
-  // WP user display name을 Ghost 이름과 일치시킴 (동명이인 구분용, Ghost가 단일 진실 원천)
-  const ghostPrimary = post.authors[0]
-  const wpUser = wpUsers.find((u) => u.id === wpAuthorId)
-  if (ghostPrimary && wpUser && wpUser.name !== ghostPrimary.name) {
-    try {
-      await updateWpUserName(wpAuthorId, ghostPrimary.name)
-      console.log(`  WP user name 갱신: "${wpUser.name}" → "${ghostPrimary.name}" (ID: ${wpAuthorId})`)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.warn(`  WP user name 갱신 실패 (ID: ${wpAuthorId}): ${msg}`)
-    }
-  }
+  // WP에 등록된 에디터 이름은 임의 변경 금지 (단일 진실 원천 = WP).
+  // 매칭은 author-filter.ts가 풀 네임 기준으로 처리하며, 여기서 이름을 덮어쓰지 않는다.
 
   if (!post.html) {
     return { ...base, status: "failed", reason: "HTML 본문 없음" }
@@ -114,13 +104,16 @@ export const syncOnePost = async (
     : { categoryIds: mapCategories(post.tags), primaryId: 0 }
 
   // 태그: Ghost 태그 + Notion 테마/키워드/기타
+  // 큐레이션/그레이 카테고리에서는 ANTIEGG 태그를 제외 (기타 태그로 들어와도 WP에는 빼고 발행)
   const ghostTagNames = extractWpTags(post.tags)
   const notionTagNames = [
     ...(notionArticle?.themes ?? []),
     ...(notionArticle?.keywords ?? []),
     ...(notionArticle?.extras ?? []),
   ]
-  const allTagNames = [...new Set([...ghostTagNames, ...notionTagNames])]
+  const allTagNames = [...new Set([...ghostTagNames, ...notionTagNames])].filter(
+    (name) => name.trim().toUpperCase() !== "ANTIEGG"
+  )
 
   const wpTagIds: number[] = []
   for (const name of allTagNames) {

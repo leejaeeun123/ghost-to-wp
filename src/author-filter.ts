@@ -3,10 +3,10 @@ import type { GhostAuthor, WpUser, AuthorMapping } from "./types.js"
 /**
  * Ghost 작성자 ↔ WP 사용자 매핑 생성
  *
- * 매칭 기준 (순서대로 시도):
- * 1. slug 일치 (ghost: jaeun-lee, wp: jaeun-lee)
- * 2. 이름 일치 (ghost: 이재은, wp: 이재은)
- * 3. slug에서 하이픈 제거 후 비교
+ * 매칭 기준:
+ * 1. 풀 네임 완전 일치 (대소문자/앞뒤 공백 무시) — 1순위
+ * 2. 동명이인 발생 시(같은 이름의 WP 사용자가 2명 이상) 슬러그로 disambiguate
+ * 3. 풀 네임 불일치 시 매칭 실패 (슬러그 단독 폴백 X — 부분 슬러그가 다른 에디터를 잘못 매칭하는 원인)
  *
  * 매칭 안 되는 Ghost 작성자의 글은 이전 대상에서 제외.
  */
@@ -31,25 +31,29 @@ export const buildAuthorMappings = (
   return mappings
 }
 
+const normalizeName = (name: string): string => name.trim().toLowerCase()
+
 const findMatchingWpUser = (
   ghost: GhostAuthor,
   wpUsers: WpUser[]
 ): WpUser | undefined => {
-  const bySlug = wpUsers.find(
-    (wp) => wp.slug.toLowerCase() === ghost.slug.toLowerCase()
-  )
-  if (bySlug) return bySlug
+  const ghostName = normalizeName(ghost.name)
+  if (!ghostName) return undefined
 
-  const byName = wpUsers.find(
-    (wp) => wp.name.toLowerCase() === ghost.name.toLowerCase()
-  )
-  if (byName) return byName
+  const sameName = wpUsers.filter((wp) => normalizeName(wp.name) === ghostName)
 
-  const normalized = ghost.slug.replace(/-/g, "")
-  const byNormalized = wpUsers.find(
-    (wp) => wp.slug.replace(/-/g, "").toLowerCase() === normalized.toLowerCase()
-  )
-  if (byNormalized) return byNormalized
+  if (sameName.length === 1) return sameName[0]
+
+  // 동명이인: 슬러그로 추가 disambiguation
+  if (sameName.length > 1) {
+    const ghostSlug = ghost.slug.toLowerCase()
+    const ghostSlugFlat = ghost.slug.replace(/-/g, "").toLowerCase()
+    return sameName.find(
+      (wp) =>
+        wp.slug.toLowerCase() === ghostSlug ||
+        wp.slug.replace(/-/g, "").toLowerCase() === ghostSlugFlat
+    )
+  }
 
   return undefined
 }
