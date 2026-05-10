@@ -4,7 +4,7 @@ import { fetchWpUsers, findWpPostBySlug, createWpPost, findOrCreateWpTag, setYoa
 import { transformGhostToWp } from "../html-transformer.js"
 import { replaceImageUrls, uploadFeatureImage } from "../image-handler.js"
 import { buildAuthorMappings, resolveAuthor } from "../author-filter.js"
-import { mapCategories, extractWpTags, mapCategoriesFromNotion } from "../category-mapper.js"
+import { mapCategories, extractWpTags, mapCategoriesFromNotion, GRAY_CATEGORY_RESULT } from "../category-mapper.js"
 import { generateEnglishSlug } from "../slug-generator.js"
 import { findNotionArticle } from "../notion-client.js"
 import type { GhostPost, SyncResult } from "../types.js"
@@ -90,18 +90,34 @@ export const syncOnePost = async (
     console.log(`  Notion 매칭: "${notionArticle.title}" (${notionArticle.status})`)
   }
 
-  // 그레이 판별: Notion 카테고리 우선, Ghost 태그 폴백
-  const isGray = notionArticle?.categories.some((c) => c === "그레이" || c.toUpperCase() === "GRAY")
-    ?? post.tags.some((t) => t.name === "그레이" || t.name.toUpperCase() === "GRAY" || t.slug.startsWith("gray"))
+  // 그레이 판별: Notion "🔴 콘텐츠 종류" 단일 진실 원천.
+  // 콘텐츠 종류가 "그레이" 또는 "GRAY"면 그레이 아티클로 처리.
+  // Notion contentType이 비어있을 때만 Ghost 태그로 폴백 (Notion 미연동 환경 대응).
+  const matchesGray = (s: string): boolean => {
+    const v = s.trim()
+    return v === "그레이" || v.toUpperCase() === "GRAY"
+  }
+
+  const notionContentType = notionArticle?.contentType ?? []
+  const isGray = notionContentType.length > 0
+    ? notionContentType.some(matchesGray)
+    : post.tags.some(
+        (t) => matchesGray(t.name) || t.slug.toLowerCase().startsWith("gray")
+      )
 
   const wpHtml = transformGhostToWp(post.html, wpAuthorId ?? undefined)
   const { html: finalHtml } = await replaceImageUrls(wpHtml, false)
   const featuredMediaId = await uploadFeatureImage(post.feature_image, false, isGray)
 
-  // 카테고리: Notion 기준 (매거진+큐레이션+카테고리), Ghost 폴백
-  const { categoryIds: categories, primaryId: primaryCategoryId } = notionArticle?.categories.length
-    ? mapCategoriesFromNotion(notionArticle.categories)
-    : { categoryIds: mapCategories(post.tags), primaryId: 0 }
+  // 카테고리:
+  // - 그레이: 매거진 + 그레이만 (🔴 카테고리 매칭하지 않음)
+  // - Notion 카테고리 있음: 매거진 + 큐레이션 + 🔴 카테고리
+  // - 그 외: Ghost 태그 폴백
+  const { categoryIds: categories, primaryId: primaryCategoryId } = isGray
+    ? GRAY_CATEGORY_RESULT
+    : notionArticle?.categories.length
+      ? mapCategoriesFromNotion(notionArticle.categories)
+      : { categoryIds: mapCategories(post.tags), primaryId: 0 }
 
   // 태그: Ghost 태그 + Notion 테마/키워드/기타
   // 큐레이션/그레이 카테고리에서는 ANTIEGG 태그를 제외 (기타 태그로 들어와도 WP에는 빼고 발행)

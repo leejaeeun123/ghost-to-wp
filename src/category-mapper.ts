@@ -53,21 +53,34 @@ export const mapCategories = (ghostTags: GhostTag[]): number[] => {
 }
 
 /**
+ * 그레이 아티클 전용 카테고리 (매거진 + 그레이만, 🔴 카테고리는 매칭하지 않음)
+ *
+ * 호출자에서 그레이 판별이 끝난 뒤 사용. Notion/Ghost 어느 쪽이 그레이를 알려도 동일하게 적용.
+ */
+export const GRAY_CATEGORY_RESULT: { categoryIds: number[]; primaryId: number } = {
+  categoryIds: [MAGAZINE_CATEGORY_ID, GRAY_CATEGORY_ID],
+  primaryId: GRAY_CATEGORY_ID,
+}
+
+/**
  * Notion 카테고리 기반 WP 카테고리 매핑 + primary 카테고리
  *
  * - 일반: 매거진 + 큐레이션 + Notion 카테고리
- * - 그레이: 매거진 + 그레이 (큐레이션 제외)
+ * - 그레이(forceGray 또는 카테고리 내에 그레이/GRAY 존재): 매거진 + 그레이 (🔴 카테고리 매칭 안 함)
  * - primary = Notion 첫 번째 카테고리 (순서 기준)
  */
 export const mapCategoriesFromNotion = (
-  notionCategories: string[]
+  notionCategories: string[],
+  forceGray = false
 ): { categoryIds: number[]; primaryId: number } => {
-  const isGray = notionCategories.some(
-    (c) => c === "그레이" || c.toUpperCase() === "GRAY"
-  )
+  const isGray =
+    forceGray ||
+    notionCategories.some(
+      (c) => c.trim() === "그레이" || c.trim().toUpperCase() === "GRAY"
+    )
 
   if (isGray) {
-    return { categoryIds: [MAGAZINE_CATEGORY_ID, GRAY_CATEGORY_ID], primaryId: GRAY_CATEGORY_ID }
+    return GRAY_CATEGORY_RESULT
   }
 
   const categoryIds = new Set<number>([MAGAZINE_CATEGORY_ID, CURATION_CATEGORY_ID])

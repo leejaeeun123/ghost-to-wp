@@ -17,6 +17,8 @@ export interface NotionArticle {
   publishDate: string | null
   status: string
   squareCmsUrl: string
+  /** 🔴 콘텐츠 종류 — GRAY/그레이/CURATION/큐레이션 등 (그레이 판별의 단일 진실 원천) */
+  contentType: string[]
   categories: string[]
   keywords: string[]
   themes: string[]
@@ -68,6 +70,17 @@ const extractSlugFromUrl = (url: string): string => {
   return cleaned.split("/").pop() ?? ""
 }
 
+/** "🔴 콘텐츠 종류" — multi_select / select 어느 쪽이든 string[] 로 정규화 */
+const readContentType = (props: Record<string, any>): string[] => {
+  const field = props["🔴 콘텐츠 종류"]
+  if (!field) return []
+  if (Array.isArray(field.multi_select)) {
+    return field.multi_select.map((s: { name: string }) => s.name)
+  }
+  if (field.select?.name) return [field.select.name]
+  return []
+}
+
 /** Notion 페이지 properties → NotionArticle 변환 */
 const extractArticle = (props: Record<string, any>): NotionArticle => ({
   title: props["아티클 제목"]?.title?.[0]?.plain_text ?? "",
@@ -78,6 +91,7 @@ const extractArticle = (props: Record<string, any>): NotionArticle => ({
   publishDate: props["발행일"]?.date?.start ?? null,
   status: props["상태"]?.select?.name ?? "",
   squareCmsUrl: props["Square CMS"]?.url ?? "",
+  contentType: readContentType(props),
   categories: props["🔴 카테고리"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
   keywords: props["🔴 키워드"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
   themes: props["🔴 테마"]?.multi_select?.map((s: { name: string }) => s.name) ?? [],
