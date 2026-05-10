@@ -1,0 +1,9 @@
+{
+  "otherRequests": [
+    {
+      "url": "https://editor-static.pstatic.net/e/basic.desktop/1.75.0/se-oglink-component-view.js?t=1773387672431",
+      "method": "GET",
+      "resPreview": "(window.__se_editor_jsonp=window.__se_editor_jsonp||[]).push([[49],{1104:function(e,t,n){\"use strict\";n.r(t);var r,o=n(61),i=n.n(o),a=n(73),l=n.n(a),s=n(324),c=n(53),u=n(75),p=n(76),m=n(448),d=n(445),f=n(415),h=n(641);function v(e,t){return(v=Object.setPrototypeOf?Object.setPrototypeOf.bind():function(e,t){return e.__proto__=t,e})(e,t)}function b(e,t,n,r,o){var i={};return Object.keys(r).forEach(f"
+    }
+  ]
+}

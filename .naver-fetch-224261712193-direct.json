@@ -1,0 +1,617 @@
+{
+  "editorKey": "blogpc001",
+  "documentData": {
+    "document": {
+      "version": "2.9.0",
+      "theme": "default",
+      "language": "ko-KR",
+      "id": "01KPTKDG529SHXJBJ4WCCMMWFB",
+      "di": {
+        "dif": false,
+        "dio": [
+          {
+            "dis": "N",
+            "dia": {
+              "t": 0,
+              "p": 0,
+              "st": 329,
+              "sk": 2
+            }
+          },
+          {
+            "dis": "N",
+            "dia": {
+              "t": 0,
+              "p": 0,
+              "st": 7,
+              "sk": 0
+            }
+          }
+        ]
+      },
+      "components": [
+        {
+          "id": "SE-15643ac9-382b-4861-8232-65ca9d19bd27",
+          "layout": "default",
+          "title": [
+            {
+              "id": "SE-11d706b2-8efe-4eea-9845-a9ffca908055",
+              "nodes": [
+                {
+                  "id": "SE-3d276dd8-cee6-43e2-b001-118ad8ae3f1f",
+                  "value": "'애도를 다룬 영화 세 편', 이해할 수 없음을 이해하기",
+                  "style": {
+                    "fontFamily": "nanumbarungothic",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "@ctype": "paragraph"
+            }
+          ],
+          "subTitle": null,
+          "background": {
+            "image": {
+              "id": "SE-afee004d-f404-4499-b095-f1ad92d4a750",
+              "layout": "default",
+              "src": "https://blogfiles.pstatic.net/MjAyNjA0MjJfMjIw/MDAxNzc2ODYxNzg3NjM1.gj5AdnKOUpkD_Xu5RVRVr5Uneqy5M2rFhpqnCmHqdiUg.2XrbMv1FdskbC7wCh_HH6r7Ka9QuIjk52ytUJLRdmMUg.JPEG/unnamed-file-20.jpeg?type=w1",
+              "internalResource": true,
+              "represent": true,
+              "path": "/MjAyNjA0MjJfMjIw/MDAxNzc2ODYxNzg3NjM1.gj5AdnKOUpkD_Xu5RVRVr5Uneqy5M2rFhpqnCmHqdiUg.2XrbMv1FdskbC7wCh_HH6r7Ka9QuIjk52ytUJLRdmMUg.JPEG/unnamed-file-20.jpeg",
+              "domain": "https://blogfiles.pstatic.net",
+              "fileSize": 40155,
+              "width": 693,
+              "widthPercentage": 0,
+              "height": 374,
+              "originalWidth": 1280,
+              "originalHeight": 692,
+              "caption": null,
+              "format": "normal",
+              "displayFormat": "normal",
+              "imageLoaded": false,
+              "contentMode": "fit",
+              "origin": {
+                "srcFrom": "local",
+                "@ctype": "imageOrigin"
+              },
+              "ai": false,
+              "@ctype": "image"
+            },
+            "point": {
+              "x": 50,
+              "y": 66.36362459463133,
+              "@ctype": "point"
+            },
+            "@ctype": "background"
+          },
+          "align": "left",
+          "@ctype": "documentTitle"
+        },
+        {
+          "id": "SE-0ae760d9-8e3b-4aaa-a27a-5e022dc95dcd",
+          "layout": "default",
+          "value": [
+            {
+              "id": "SE-a0ad78c0-89d8-405c-a615-e0debfff8d29",
+              "nodes": [
+                {
+                  "id": "SE-a921ac1f-4d3a-4507-9b75-14a6601cf6b1",
+                  "value": "Edited by ",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                },
+                {
+                  "id": "SE-3f013719-7f73-4234-ad81-b629bfc1dde0",
+                  "value": "루루",
+                  "style": {
+                    "fontColor": "#f7343c",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "bold": true,
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "right",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            }
+          ],
+          "@ctype": "text"
+        },
+        {
+          "id": "SE-1bfee4af-977c-4238-b217-c09af5edf964",
+          "layout": "line1",
+          "align": "justify",
+          "@ctype": "horizontalLine"
+        },
+        {
+          "id": "SE-5fbd57ac-1b61-4e7f-840e-9a8f3233e7b3",
+          "layout": "default",
+          "value": [
+            {
+              "id": "SE-540a724f-b228-4138-a8a0-f6be3fd96b1b",
+              "nodes": [
+                {
+                  "id": "SE-2750b99e-2ef2-4d0b-970d-b64db5a23f76",
+                  "value": "상실. 잃을 상(喪)과 잃을 실(失), 무려 두 번의 ‘잃음’으로 이뤄졌습니다. 어떤 사람과 관계가 끊어지고 헤어지게 되거나, 어떤 것이 아주 없어지고 사라진 상태를 의미하죠. 실제로 우리는 살면서 잦은 만남과 이별을 경험하기 때문에, 이를 제법 익숙하게 받아들이거나 그 충격에 점점 무뎌지곤 하지만, 그렇지 않은 경우도 있습니다. 어떤 상실은 몹시도 사무쳐서 그 여운이 아주 짙고, 결국 깊은 상심이 되기도 하니까요.",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-f8ec698b-5c60-4470-b2d6-58a42ae56853",
+              "nodes": [
+                {
+                  "id": "SE-29d53694-8dc9-44bc-8487-ee24bff872db",
+                  "value": "",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-16dcc6f5-b6d8-4b0d-b0e8-50fdb3f76d33",
+              "nodes": [
+                {
+                  "id": "SE-cc3a3252-d87b-41de-a0cf-e442a3fdda92",
+                  "value": "그때 그 사람이 떠나기 전, 어떻게 하는 것이 나의 최선이었을까. ",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-bc6b7307-03ba-498a-91c6-cd61356c4fed",
+              "nodes": [
+                {
+                  "id": "SE-7a964ecb-fa23-45e3-9f70-0006019c7786",
+                  "value": "상대뿐 아니라 자신을 향해 밀려오는 이 숙제 같은 마음. 우리는 그 고통에 그저 중독되거나 애써 도망치며 모르는 척하기 쉽습니다. 그러나 어쩌면 그 기억을 제대로 대면하지 않아서, 그 감정의 끝까지 가보지 않아서, 이런 딜레마를 겪는 건지도 모릅니다. 이제는 이유도 모를 분노와 후회, 우울과 회피에 그저 사로잡히는 거죠. 무엇이 진심인지 더 이상 알 수 없는 혼란 속에서요. ",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-9cb5276c-44d7-4129-931e-7d87a54c52fa",
+              "nodes": [
+                {
+                  "id": "SE-d707de3e-8d7d-45fa-b296-d88b2742b0e6",
+                  "value": "",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-b5caa0ba-c5d4-40ec-b6c7-8872c4917aa4",
+              "nodes": [
+                {
+                  "id": "SE-89f6ccdd-fdbe-44f5-993c-3aa4060f51a1",
+                  "value": "지금부터 소개할 작품들은 이 문제를 끝까지 밀어붙이고 그 결과를 우리에게 보여주는 ‘애도’의 영화들입니다. 힘들었던 순간들을 곱씹고 생각을 정리하며, 우울과 절망을 넘어 마침내 현실로 나아가는 담백한 이야기들. 많은 망설임의 끝에 오롯하게 슬퍼하는, 건강한 삶을 위해 꼭 필요한 ‘애도’의 순간들을, 한번 만나볼까요? ",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            }
+          ],
+          "@ctype": "text"
+        },
+        {
+          "id": "SE-3b54b119-bc68-4616-bc48-3ba8053761b1",
+          "layout": "default",
+          "align": "center",
+          "@ctype": "horizontalLine"
+        },
+        {
+          "id": "SE-47f67f76-a785-442d-8e56-d3f5ac2fdfcb",
+          "layout": "default",
+          "value": [
+            {
+              "id": "SE-de604b3e-4af2-47b3-8ac5-e37bf29ef438",
+              "nodes": [
+                {
+                  "id": "SE-dd3f3623-761b-4c4b-8739-685bd58a404c",
+                  "value": "이 아티클의 본문 내용이 궁금하신가요?",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "bold": true,
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-5ad58ab8-5ce6-46d8-999e-836689b07d10",
+              "nodes": [
+                {
+                  "id": "SE-c7b93192-d99c-4e20-afb0-5279c9321920",
+                  "value": "링크를 클릭하면 바로 읽어보실 수 있습니다.",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "bold": true,
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-3eb4d124-e649-4041-8cde-d3f05d7b4ab1",
+              "nodes": [
+                {
+                  "id": "SE-4121b15d-a31a-42d0-b7e1-c38a8787b712",
+                  "value": " ",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            }
+          ],
+          "@ctype": "text"
+        },
+        {
+          "id": "SE-8827c4fc-e216-4e90-ba4f-58cb33663447",
+          "layout": "large_image",
+          "align": "center",
+          "title": "이해할 수 없음을 이해하기 - ANTIEGG 컬쳐",
+          "domain": "antiegg.kr",
+          "link": "https://antiegg.kr/33926/",
+          "thumbnail": {
+            "src": "https://square.antiegg.kr/content/images/2026/04/-----------.jpeg",
+            "width": 1280,
+            "height": 692,
+            "@ctype": "thumbnail"
+          },
+          "description": "애도를 다룬 영화 세 편 | 우리는 살아가면서 많은 사람과 관계를 맺습니다. 그리고 그만큼 많은 사람과 관계를 정리하죠. 특히 내가 의도하지 않았고 선택하지 않았을 때, 그 괴로움은 이루 말할 수 없죠.",
+          "video": false,
+          "oglinkSign": "shFpxlkVIddSCE5J04Ig3ryPXbwmtV27YB6W-wZb0GA__v1.0",
+          "@ctype": "oglink"
+        },
+        {
+          "id": "SE-68045a35-1be3-414d-abbf-1650df0b6477",
+          "layout": "default",
+          "value": [
+            {
+              "id": "SE-ba794130-1cab-4410-b1f6-3c4db3f559cb",
+              "nodes": [
+                {
+                  "id": "SE-1e7c0f15-a285-4820-b88f-93c268209a6c",
+                  "value": "",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            }
+          ],
+          "@ctype": "text"
+        },
+        {
+          "id": "SE-89d1f438-75a3-4d3a-a720-87ab98839ba5",
+          "layout": "line1",
+          "align": "center",
+          "@ctype": "horizontalLine"
+        },
+        {
+          "id": "SE-571df890-c144-4a7c-bc86-58dd51094a0a",
+          "layout": "default",
+          "value": [
+            {
+              "id": "SE-b625026d-daeb-406c-b346-813039d0efa7",
+              "nodes": [
+                {
+                  "id": "SE-f72e9536-9f06-4524-9089-9cdfcfaac58c",
+                  "value": "이런 아티클은 어때요?",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-696ee838-f535-4a86-8c4c-4197b2163ac8",
+              "nodes": [
+                {
+                  "id": "SE-43d9f18b-ec6b-4aa3-a0de-6d24e6699240",
+                  "value": "더 많은 아티클은 ANTIEGG 사이트에서 확인하세요.",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-2f3b817d-b45d-468c-abb1-4ef2a6eef24f",
+              "nodes": [
+                {
+                  "id": "SE-a52f5384-e51d-4ce6-9abf-f888f4cb951a",
+                  "value": " ",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            }
+          ],
+          "@ctype": "text"
+        },
+        {
+          "id": "SE-e9a41a3a-7e01-40ca-9c47-763772326ac5",
+          "layout": "text",
+          "align": "center",
+          "title": "ANTIEGG - 프리랜서 에디터 공동체",
+          "domain": "antiegg.kr",
+          "link": "https://antiegg.kr/",
+          "thumbnail": {
+            "src": "https://antiegg.kr/wp-content/uploads/2026/03/%EA%B2%8C%EB%8D%94%EB%A7%81-%ED%94%84%EB%A6%AC%EB%9E%9C%EC%84%9C%EB%A5%BC-%EC%9C%84%ED%95%9C-B2B-%EC%86%8C%EA%B0%9C%EC%84%9C-%EB%A7%8C%EB%93%A4%EA%B8%B0-768x512.png",
+            "width": 768,
+            "height": 512,
+            "@ctype": "thumbnail"
+          },
+          "description": "우리는 프리랜서 에디터 공동체 ANTIEGG입니다. 우리는 에디터들의 광장이 되고자 합니다. 프리랜서 에디터의 고정 수익을 만들고 인하우스 고용이 어려운 기업에게 대안을 제시합니다. The square, Where Editors Live",
+          "video": false,
+          "oglinkSign": "x0ofzvoUEgC8FzTla74KGT2vlfrGBKOTwECgFAL41vQ__v1.0",
+          "@ctype": "oglink"
+        },
+        {
+          "id": "SE-e98e5458-88ca-465d-b7a9-b4712cac0bb7",
+          "layout": "default",
+          "align": "center",
+          "@ctype": "horizontalLine"
+        },
+        {
+          "id": "SE-0c6461ed-d2b6-4fd5-8a83-f35a9b69bcf0",
+          "layout": "default",
+          "value": [
+            {
+              "id": "SE-2d79f191-438e-4bb1-bf43-ebed9ca78f4e",
+              "nodes": [
+                {
+                  "id": "SE-9c4e3083-4533-4f92-9b14-ac3c93b184f6",
+                  "value": "하루에 한 번 신선한 영감을 얻을 수 있는 곳",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-1a0c6eb9-54d0-4794-8d7a-bff6493b955f",
+              "nodes": [
+                {
+                  "id": "SE-7a84e1c6-9662-44f7-930c-bcb222b8cbe1",
+                  "value": "프리랜서 에디터 공동체 ANTIEGG가 궁금하다면?",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            },
+            {
+              "id": "SE-f1a9d234-0378-413c-bca9-5ee2ece1a39b",
+              "nodes": [
+                {
+                  "id": "SE-cf77ca74-6ae5-405d-938e-9cecea88c305",
+                  "value": " ",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "center",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            }
+          ],
+          "@ctype": "text"
+        },
+        {
+          "id": "SE-1531da69-4a15-4e3d-a46d-980e4a26fb76",
+          "layout": "large_image",
+          "align": "center",
+          "title": "브랜드 소개 - ANTIEGG",
+          "domain": "antiegg.kr",
+          "link": "https://antiegg.kr/about/",
+          "thumbnail": {
+            "src": "https://antiegg.kr/wp-content/uploads/2025/03/%EC%9B%B9%ED%91%9C%EC%A7%80-3-scaled.jpg",
+            "width": 2560,
+            "height": 1707,
+            "@ctype": "thumbnail"
+          },
+          "description": "프리랜서 에디터 공동체 ANTIEGG를 소개합니다. 우리는 모두가 동등한 권리와 의무를 갖고 일할 수 있어야 한다고 믿습니다. 시작하는 에디터는 용기있는 시작을 해낼 수 있어야 하며, 일하는 에디터는 멈추지 않고 지속할 힘이 있어야 합니다. 또 우리 모두는 적절한 균형속에서 안전감을 느끼며 살아가야 합니다.",
+          "video": false,
+          "oglinkSign": "548QVm29QlWecOxSleey9bFKSiyMeJagNtZJlvslTgY__v1.0",
+          "@ctype": "oglink"
+        },
+        {
+          "id": "SE-232f14bb-cfee-4c0a-9997-cf41e26afea4",
+          "layout": "default",
+          "value": [
+            {
+              "id": "SE-3644b166-0eee-423f-b19c-f37bcfbb9efe",
+              "nodes": [
+                {
+                  "id": "SE-fc522b97-06b9-40dc-8919-7920422bf286",
+                  "value": "",
+                  "style": {
+                    "fontColor": "#141414",
+                    "fontFamily": "nanumbarungothic",
+                    "fontSizeCode": "fs16",
+                    "@ctype": "nodeStyle"
+                  },
+                  "@ctype": "textNode"
+                }
+              ],
+              "style": {
+                "align": "justify",
+                "@ctype": "paragraphStyle"
+              },
+              "@ctype": "paragraph"
+            }
+          ],
+          "@ctype": "text"
+        }
+      ]
+    },
+    "documentId": "224261712193"
+  },
+  "documentId": "224261712193",
+  "componentList": null,
+  "compListField": null
+}
