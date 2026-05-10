@@ -1,6 +1,7 @@
 import { chromium, type Page } from "playwright";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { NaverCategory } from "./blog-format/naver-category-mapper.js";
 import type { NaverTopic } from "./blog-format/naver-topic-mapper.js";
 
@@ -8,13 +9,29 @@ const STATE_PATH = resolve(process.cwd(), ".naver-browser-state.json");
 const POST_WRITE_URL =
   "https://blog.naver.com/PostWriteForm.naver?blogId=antiegg&Redirect=Write&redirect=Write&widgetTypeCall=true&directAccess=false";
 
+// One-line stand-in to satisfy SE3 autosave validation; the real body is
+// injected via the RabbitWrite swap interceptor below.
+const DUMMY_BODY = "본문 자리표시자 — 인터셉터가 정렬 보존된 트리로 교체합니다.";
+
 export interface NaverPublishOptions {
   title: string;
-  bodyHtml: string; // SE3-compatible HTML produced by naver-formatter.ts
+  bodyHtml: string;
   category: NaverCategory;
   topic: NaverTopic;
   privacy: "public" | "private";
   tags?: string[];
+  /**
+   * formatForNaver가 emit한 divider 종류 시퀀스 (등장 순서). swap 후처리가
+   * ourComponents 안의 horizontalLine에 layout/align을 매칭 set한다.
+   *  - "short" → layout:"default", align:"center"
+   *  - "long"  → layout:"line1",   align:"justify"
+   */
+  dividerLayouts?: ("short" | "long")[];
+  /**
+   * 본문 안에 단독 paragraph로 등장하는 URL 시퀀스. OG API로 메타 받아 oglink
+   * 컴포넌트로 변환한 후 ourComponents의 동일 URL paragraph 자리에 삽입.
+   */
+  oglinkUrls?: string[];
   headless?: boolean;
 }
 
@@ -23,7 +40,11 @@ export interface NaverPublishResult {
   logNo?: string;
   url?: string;
   error?: string;
-  publishedAligns?: Array<{ ctype: string; align: string }>;
+  swapDetail?: {
+    originalCount: number;
+    swappedCount: number;
+    ourComponentsCount: number;
+  };
 }
 
 const SE_PROBE = `
@@ -50,72 +71,145 @@ const PRIVATE_CHECK = `
   })();
 `;
 
-async function dismissPopups(page: Page): Promise<void> {
-  await page.evaluate(`
-    (() => {
-      var bs = document.querySelectorAll('button');
-      for (var i = 0; i < bs.length; i++) {
-        var t = (bs[i].textContent || '').trim();
-        if (/^(취소|닫기|×|아니오|아니요)$/.test(t) && bs[i].offsetParent !== null) {
-          try { bs[i].click(); } catch (_) {}
-        }
+const RESOLVE_USER_ID = `
+  (() => {
+    var ed = window.SmartEditor && window.SmartEditor._editors;
+    if (!ed) return null;
+    var keys = Object.keys(ed);
+    for (var i = 0; i < keys.length; i++) {
+      var inst = ed[keys[i]];
+      if (inst && inst._authService && inst._authService._userId) {
+        return inst._authService._userId;
       }
-    })();
-  `);
-  await page.waitForTimeout(1500);
-}
+    }
+    return null;
+  })()
+`;
 
-// SE3 paste handler ignores its own align CSS classes. Inject inline
-// `style="text-align:X"` so the upconvert pipeline picks it up.
-function ensureInlineAlign(html: string): string {
-  return html.replace(
-    /<p\b[^>]*?class="[^"]*\bse-text-paragraph-align-(left|right|center|justify)\b[^"]*"[^>]*>/g,
-    (match, align) => {
-      if (/style="[^"]*text-align/i.test(match)) return match;
-      if (/style="[^"]*"/.test(match)) {
-        return match.replace(
-          /style="([^"]*)"/,
-          (_m, s) => `style="${s}; text-align:${align}"`,
-        );
+const UPCONVERT_FN = `
+  (async (html, userId) => {
+    var url = "https://upconvert.editor.naver.com/blog/html/components?documentWidth=693&userId=" + encodeURIComponent(userId);
+    try {
+      var res = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "text/plain" },
+        body: html
+      });
+      var text = await res.text();
+      var parsed = null;
+      try { parsed = JSON.parse(text); } catch (_) {}
+      return { ok: res.ok, status: res.status, components: parsed, body: text.slice(0, 400) };
+    } catch (e) {
+      return { error: String(e) };
+    }
+  })
+`;
+
+const DISMISS_POPUPS = `
+  (() => {
+    var bs = document.querySelectorAll('button');
+    for (var i = 0; i < bs.length; i++) {
+      var t = (bs[i].textContent || '').trim();
+      if (/^(취소|닫기|×|아니오|아니요)$/.test(t) && bs[i].offsetParent !== null) {
+        try { bs[i].click(); } catch (_) {}
       }
-      return match.replace(/<p\b/, `<p style="text-align:${align}"`);
-    },
-  );
-}
+    }
+  })();
+`;
 
-async function fillTitleAndBodyHtml(
-  page: Page,
-  title: string,
-  bodyHtml: string,
-): Promise<boolean> {
-  const probe: any = await page.evaluate(SE_PROBE);
-  if (!probe.hasTitle || !probe.hasBody) return false;
-
-  // title via insertText (IME-safe)
+async function fillTitle(page: Page, title: string): Promise<void> {
   await page.locator('[data-poc-target="title"]').click({ force: true });
   await page.waitForTimeout(300);
   await page.keyboard.insertText(title);
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(800);
+}
 
-  // body via HTML clipboard paste so SE3 routes it through upconvert.editor.naver.com
-  const normalized = ensureInlineAlign(bodyHtml);
-  await page.evaluate(async (html) => {
-    const blob = new Blob([html], { type: "text/html" });
-    const plainBlob = new Blob([html.replace(/<[^>]+>/g, "")], {
-      type: "text/plain",
-    });
-    const item = new ClipboardItem({
-      "text/html": blob,
-      "text/plain": plainBlob,
-    });
-    await navigator.clipboard.write([item]);
-  }, normalized);
-
+async function pasteDummyBody(page: Page): Promise<void> {
+  await page.evaluate((text) => navigator.clipboard.writeText(text), DUMMY_BODY);
   await page.locator('[data-poc-target="body"]').click({ force: true });
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(300);
   await page.keyboard.press("Control+V");
-  await page.waitForTimeout(2500);
-  return true;
+  await page.waitForTimeout(1500);
+}
+
+async function upconvertBody(
+  page: Page,
+  html: string,
+  userId: string,
+): Promise<any[] | null> {
+  const result: any = await page.evaluate(
+    `${UPCONVERT_FN}(${JSON.stringify(html)}, ${JSON.stringify(userId)})`,
+  );
+  if (!result?.components || !Array.isArray(result.components)) return null;
+  return result.components;
+}
+
+interface SwapHandle {
+  getDetail: () => NaverPublishResult["swapDetail"];
+}
+
+async function installSwapInterceptor(
+  page: Page,
+  ourComponents: any[],
+): Promise<SwapHandle> {
+  let detail: NaverPublishResult["swapDetail"];
+
+  await page.route("**/RabbitWrite.naver*", async (route) => {
+    const url = route.request().url();
+    if (/AutoSave/.test(url)) return route.continue();
+    const post = route.request().postData();
+    if (!post) return route.continue();
+
+    try {
+      const params = new URLSearchParams(post);
+      const dmStr = params.get("documentModel");
+      if (!dmStr) return route.continue();
+      const dm = JSON.parse(dmStr);
+      const original = dm.document.components as any[];
+      const titleComp = original[0];
+
+      // Force documentTitle to left-align — paste flow always centers.
+      if (titleComp && titleComp["@ctype"] === "documentTitle") {
+        titleComp.align = "left";
+        if (Array.isArray(titleComp.title)) {
+          for (const para of titleComp.title) {
+            if (para?.style) para.style.align = "left";
+          }
+        }
+      }
+
+      const swapped = [titleComp, ...ourComponents];
+      dm.document.components = swapped;
+      params.set("documentModel", JSON.stringify(dm));
+
+      detail = {
+        originalCount: original.length,
+        swappedCount: swapped.length,
+        ourComponentsCount: ourComponents.length,
+      };
+
+      // diagnostic dump — Phase 3에서 divider/oglink/documentTitle 형식 진단용
+      try {
+        writeFileSync(
+          resolve(process.cwd(), ".naver-debug-final-swap.json"),
+          JSON.stringify(
+            { originalDocumentModel: JSON.parse(dmStr), swappedDocumentModel: dm },
+            null,
+            2,
+          ),
+          "utf8",
+        );
+      } catch {}
+
+      route.continue({ postData: params.toString() });
+    } catch (e) {
+      console.error("[naver-publisher] swap error:", e);
+      route.continue();
+    }
+  });
+
+  return { getDetail: () => detail };
 }
 
 async function openPublishModal(page: Page): Promise<void> {
@@ -132,14 +226,8 @@ async function openPublishModal(page: Page): Promise<void> {
   throw new Error("could not open publish modal");
 }
 
-async function selectCategory(
-  page: Page,
-  category: NaverCategory,
-): Promise<void> {
-  await page
-    .locator('[class*="selectbox_button"]')
-    .first()
-    .click({ force: true });
+async function selectCategory(page: Page, category: NaverCategory): Promise<void> {
+  await page.locator('[class*="selectbox_button"]').first().click({ force: true });
   await page.waitForTimeout(1000);
   await page.locator(`li:has-text("${category}")`).first().click({ force: true });
   await page.waitForTimeout(800);
@@ -161,33 +249,130 @@ async function selectPrivacy(
   page: Page,
   privacy: "public" | "private",
 ): Promise<void> {
+  const label = privacy === "private" ? "비공개" : "전체공개";
+  await page.locator(`label:has-text("${label}")`).first().click({ force: true });
+  await page.waitForTimeout(800);
   if (privacy === "private") {
-    await page
-      .locator('label:has-text("비공개")')
-      .first()
-      .click({ force: true });
-    await page.waitForTimeout(800);
     const ok = await page.evaluate(PRIVATE_CHECK);
     if (!ok) throw new Error("could not verify 비공개 selection");
-  } else {
-    // 전체공개 — already default, but click to be explicit
-    await page
-      .locator('label:has-text("전체공개")')
-      .first()
-      .click({ force: true });
-    await page.waitForTimeout(500);
   }
 }
 
+// Naver tag input rejects most special characters (#, -, _, ., etc.). The
+// first rejection silently breaks all subsequent tag entries. Strip everything
+// that isn't 한글/영문/숫자/공백 before submission.
+function sanitizeNaverTag(tag: string): string {
+  return tag.replace(/[^가-힣a-zA-Z0-9 ]/g, "").trim();
+}
+
+// SE3 OG card metadata via the platform.editor.naver.com endpoint we identified
+// from the paste-flow capture. Returns the `oglink` object from the response
+// (contains summary{domain,url,title,description,image} plus optional sign).
+const FETCH_OG_FN = `
+  (async (url) => {
+    var endpoint = "https://platform.editor.naver.com/api/blogpc001/v1/oglink?url=" + encodeURIComponent(url);
+    try {
+      var res = await fetch(endpoint, { credentials: "include" });
+      var json = await res.json();
+      return { ok: res.ok, status: res.status, oglink: json && json.oglink };
+    } catch (e) {
+      return { error: String(e) };
+    }
+  })
+`;
+
+async function fetchOglinkMeta(page: Page, url: string): Promise<any | null> {
+  const result: any = await page.evaluate(
+    `${FETCH_OG_FN}(${JSON.stringify(url)})`,
+  );
+  if (!result?.ok || !result.oglink?.summary) return null;
+  return result.oglink;
+}
+
+function buildOglinkComponent(meta: any): any {
+  const summary = meta.summary;
+  const oglink: any = {
+    "@ctype": "oglink",
+    id: `SE-${randomUUID()}`,
+    layout: "large_image",
+    align: "center",
+    title: summary.title || "",
+    domain: summary.domain || "",
+    link: summary.url || "",
+    description: summary.description || "",
+    video: false,
+  };
+  if (summary.image?.url) {
+    oglink.thumbnail = {
+      "@ctype": "thumbnail",
+      src: summary.image.url,
+      width: summary.image.width,
+      height: summary.image.height,
+    };
+  }
+  // SE3 may attach an oglinkSign verification token. If the API returned one,
+  // pass it through; otherwise omit (backend may still accept).
+  const sign = meta.oglinkSign || meta.sign;
+  if (sign) oglink.oglinkSign = sign;
+  return oglink;
+}
+
+// In ourComponents, find text components whose value contains a paragraph that
+// is exactly one of the OG-card URLs. Split that text component at the URL
+// paragraph and insert the corresponding oglink component in its place.
+function spliceOglinks(
+  components: any[],
+  urlToOglink: Map<string, any>,
+): any[] {
+  const out: any[] = [];
+  for (const c of components) {
+    if (c["@ctype"] !== "text" || !Array.isArray(c.value)) {
+      out.push(c);
+      continue;
+    }
+    let buffer: any[] = [];
+    const flushBuffer = () => {
+      if (buffer.length > 0) {
+        out.push({ ...c, id: `SE-${randomUUID()}`, value: buffer });
+        buffer = [];
+      }
+    };
+    for (const para of c.value) {
+      const text = (para?.nodes || [])
+        .map((n: any) => n?.value || "")
+        .join("");
+      const trimmed = text.trim();
+      const oglink = urlToOglink.get(trimmed);
+      if (oglink) {
+        flushBuffer();
+        out.push(oglink);
+      } else {
+        buffer.push(para);
+      }
+    }
+    flushBuffer();
+  }
+  return out;
+}
+
 async function fillTags(page: Page, tags: string[]): Promise<void> {
-  if (tags.length === 0) return;
-  const input = page.locator('input[placeholder*="태그 입력"]').first();
+  const cleaned = Array.from(
+    new Set(
+      tags
+        .map(sanitizeNaverTag)
+        .filter((t) => t.length > 0),
+    ),
+  );
+  if (cleaned.length === 0) return;
+  const input = page.locator('input[placeholder*="태그"]').first();
   await input.click({ force: true });
-  for (const tag of tags.slice(0, 30)) {
+  await page.waitForTimeout(400);
+  for (const tag of cleaned.slice(0, 30)) {
     await page.keyboard.insertText(tag);
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(150);
   }
+  await page.waitForTimeout(800);
 }
 
 export async function publishToNaver(
@@ -210,42 +395,85 @@ export async function publishToNaver(
     });
     const page = await context.newPage();
 
-    let publishRedirectUrl: string | null = null;
-    let publishRequestPayload: string | null = null;
-    page.on("request", (req) => {
-      if (
-        /RabbitWrite\.naver/.test(req.url()) &&
-        !/AutoSave/.test(req.url())
-      ) {
-        publishRequestPayload = req.postData() || null;
-      }
-    });
-    page.on("response", async (res) => {
-      if (/RabbitWrite\.naver/.test(res.url()) && !/AutoSave/.test(res.url())) {
-        try {
-          const body = await res.text();
-          const m = body.match(/"redirectUrl"\s*:\s*"([^"]+)"/);
-          if (m) publishRedirectUrl = m[1];
-        } catch {}
-      }
-    });
-
     await page.goto(POST_WRITE_URL, { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(15_000);
-    await dismissPopups(page);
-
-    const filled = await fillTitleAndBodyHtml(
-      page,
-      options.title,
-      options.bodyHtml,
-    );
-    if (!filled) {
-      return { success: false, error: "could not locate SE3 editor host elements" };
+    const titleAppeared = await page
+      .waitForSelector(".se-section-documentTitle", { timeout: 60_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!titleAppeared) {
+      return { success: false, error: "editor DOM never appeared (session expired?)" };
     }
+
+    await page.evaluate(DISMISS_POPUPS);
+    await page.waitForTimeout(2000);
+
+    const probe: any = await page.evaluate(SE_PROBE);
+    if (!probe.hasTitle || !probe.hasBody) {
+      return { success: false, error: "no title/body host found" };
+    }
+
+    await fillTitle(page, options.title);
+    await pasteDummyBody(page);
+
+    const userId: string | null = await page.evaluate(RESOLVE_USER_ID);
+    if (!userId) {
+      return { success: false, error: "could not resolve userId from authService" };
+    }
+
+    const ourComponents = await upconvertBody(page, options.bodyHtml, userId);
+    if (!ourComponents) {
+      return { success: false, error: "upconvert API failed" };
+    }
+
+    // Post-process ourComponents:
+    //  1. horizontalLine → dividerLayouts 매핑으로 layout/align 강제
+    //     "short" → layout:"default", align:"center"
+    //     "long"  → layout:"line1",   align:"justify"
+    //  2. 본문 text 컴포넌트의 paragraph align 누락 → "left"
+    //     (서체는 SE3 default로 충분하므로 강제하지 않음)
+    const dividerSpec: Record<"short" | "long", { layout: string; align: string }> = {
+      short: { layout: "default", align: "center" },
+      long: { layout: "line1", align: "justify" },
+    };
+    let didx = 0;
+    for (const c of ourComponents) {
+      if (c["@ctype"] === "text") {
+        for (const p of c.value || []) {
+          const a = p?.style?.align;
+          if (!a || a === "" || a === "justify") {
+            if (!p.style) p.style = { "@ctype": "paragraphStyle" };
+            p.style.align = "left";
+          }
+        }
+      } else if (c["@ctype"] === "horizontalLine") {
+        const kind = options.dividerLayouts?.[didx];
+        if (kind && dividerSpec[kind]) {
+          c.layout = dividerSpec[kind].layout;
+          c.align = dividerSpec[kind].align;
+        }
+        didx++;
+      }
+    }
+
+    // OG card replacement: fetch oglink metadata for each tracked URL and
+    // splice an oglink component into ourComponents wherever that URL appears
+    // as a standalone paragraph.
+    let finalComponents: any[] = ourComponents;
+    if (options.oglinkUrls?.length) {
+      const urlToOglink = new Map<string, any>();
+      for (const url of options.oglinkUrls) {
+        const meta = await fetchOglinkMeta(page, url);
+        if (meta) urlToOglink.set(url, buildOglinkComponent(meta));
+      }
+      if (urlToOglink.size > 0) {
+        finalComponents = spliceOglinks(ourComponents, urlToOglink);
+      }
+    }
+
+    const swap = await installSwapInterceptor(page, finalComponents);
 
     await openPublishModal(page);
     await selectCategory(page, options.category);
-
     if (options.topic) await selectTopic(page, options.topic);
     await selectPrivacy(page, options.privacy);
     if (options.tags?.length) await fillTags(page, options.tags);
@@ -255,48 +483,17 @@ export async function publishToNaver(
       .first()
       .click({ force: true });
 
-    await page
-      .waitForURL(/PostView|PostList/, { timeout: 30_000 })
-      .catch(() => {});
+    await page.waitForURL(/PostView|PostList/, { timeout: 30_000 }).catch(() => {});
     await page.waitForTimeout(2000);
 
-    const finalUrl = publishRedirectUrl || page.url();
+    const finalUrl = page.url();
     const logNoMatch = finalUrl.match(/logNo=(\d+)/);
-
-    // extract aligns from the actual publish payload for debugging
-    const publishedAligns: Array<{ ctype: string; align: string }> = [];
-    if (publishRequestPayload) {
-      try {
-        const params = new URLSearchParams(publishRequestPayload);
-        const dmStr = params.get("documentModel");
-        if (dmStr) {
-          const dm = JSON.parse(dmStr);
-          const collect = (n: any) => {
-            if (!n || typeof n !== "object") return;
-            if (Array.isArray(n)) {
-              n.forEach(collect);
-              return;
-            }
-            if (n.style && typeof n.style.align === "string") {
-              publishedAligns.push({
-                ctype: n["@ctype"],
-                align: n.style.align,
-              });
-            }
-            for (const k of Object.keys(n)) {
-              if (k !== "id") collect(n[k]);
-            }
-          };
-          collect(dm);
-        }
-      } catch {}
-    }
 
     return {
       success: !!logNoMatch,
       logNo: logNoMatch?.[1],
       url: finalUrl,
-      publishedAligns,
+      swapDetail: swap.getDetail(),
     };
   } catch (e) {
     return { success: false, error: String(e) };

@@ -17,17 +17,30 @@ const ANTIEGG_ABOUT = "https://antiegg.kr/about/"
  * SE3는 자기 자신이 만든 형식을 페이스트로 받으면 컴포넌트로 인식한다는 가정.
  */
 
-/** SE3 정렬 단락 — SE3 자체 클래스를 그대로 사용 */
+/**
+ * SE3 정렬 단락. upconvert API는 class+inline style 둘 다 있어야 정렬 인식
+ * (align-diagnose F 패턴 검증). class만으론 align: justify로 normalize됨.
+ */
 const seParagraph = (align: "left" | "right" | "center", innerHtml: string): string =>
-  `<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-${align}">${innerHtml}</p></div></div></div></div>`
+  `<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-${align}" style="text-align:${align}">${innerHtml}</p></div></div></div></div>`
 
-/** SE3 구분선 컴포넌트 — 길이 차등은 SE3에서 발행 전 클릭으로 조정 */
-const divider = (_length: 1 | 5): string =>
+type DividerKind = "short" | "long";
+
+/**
+ * SE3 구분선 컴포넌트 placeholder. 실제 layout/align 적용은 swap 인터셉터가 담당.
+ *  - "short" → layout:"default", align:"center" (짧은 가로 막대, 가운데)
+ *  - "long"  → layout:"line1",   align:"justify" (긴 실선, 양쪽)
+ */
+const divider = (_kind: DividerKind): string =>
   `<div class="se-component se-divider se-l-default"><div class="se-component-content"><div class="se-section se-section-divider"><div class="se-module"><hr class="se-hr"></div></div></div></div>`
 
-/** 링크 OG 카드 — 단독 단락 URL이 SE3에서 OG 카드로 자동 변환됨 */
+/**
+ * 링크 단락 — 가운데 정렬. paste flow에선 plaintext URL이 OG 카드로 자동
+ * 변환되지만, swap 흐름에선 paste handler를 거치지 않으므로 텍스트 링크로
+ * 남는다. OG 카드 변환은 별도 oglink 컴포넌트 직접 빌드가 필요(Phase 3).
+ */
 const oglinkCard = (url: string): string =>
-  `<p>${url}</p>`
+  seParagraph("center", url)
 
 const blank = (): string => `<p>&nbsp;</p>`
 
@@ -49,42 +62,65 @@ const ctaMoreArticles = (): string =>
 const ctaAboutAntiegg = (): string =>
   `${centerLine("하루에 한 번 신선한 영감을 얻을 수 있는 곳")}\n${centerLine("프리랜서 에디터 공동체 ANTIEGG가 궁금하다면?")}`
 
-/** 네이버 블로그 태그 자동 생성 — 보일러플레이트 + 카테고리 + Notion 카테고리/테마/키워드 + WP 태그 */
+/**
+ * 네이버 블로그 태그 자동 생성.
+ *
+ * WP 태그는 sync-routes.ts에서 이미 Notion 5필드(콘텐츠 종류·카테고리·테마·키워드·기타) 통합본으로 동기화됨.
+ * 따라서 article.tags 하나면 충분 — Notion 필드를 따로 합치지 않는다.
+ *   필수: ANTIEGG, antiegg, 안티에그
+ *   + article.category(큐레이션|그레이) prefix
+ *   + ...article.tags
+ */
 const buildNaverTags = (article: WeekArticle): string[] => {
   const merged = [
-    "안티에그", "ANTIEGG", "antiegg",
+    "ANTIEGG", "antiegg", "안티에그",
     article.category,
-    ...(article.notionCategories ?? []),
-    ...(article.notionThemes ?? []),
-    ...(article.notionKeywords ?? []),
     ...article.tags,
   ]
   return [...new Set(merged.filter(Boolean))]
 }
 
+/** 단락 사이에 빈 줄을 끼워 가독성 확보 (서문용) */
+const spaceParagraphs = (html: string): string =>
+  html.replace(/<\/p>\s*<(p|figure)/g, "</p><p>&nbsp;</p><$1")
+
 /** 네이버 블로그 본문 HTML + 메타 생성 */
 export const formatForNaver = (article: WeekArticle): FormattedArticle => {
   const { intro, hasDivider } = extractIntroHtml(article.contentHtml)
-  const cleanedIntro = cleanIntroHtml(intro, NAVER_IMAGE_PX)
+  const cleanedIntro = spaceParagraphs(cleanIntroHtml(intro, NAVER_IMAGE_PX))
+
+  // 사용자 명시 구분선 순서: 긴 실선 → 짧은 가로 → 긴 실선 → 짧은 가로
+  const naverDividerLayouts: DividerKind[] = []
+  const pushDivider = (k: DividerKind): string => {
+    naverDividerLayouts.push(k)
+    return divider(k)
+  }
+
+  // OG 카드로 변환할 URL 시퀀스 (등장 순서). swap 흐름에서 oglink 컴포넌트로 교체.
+  const naverOglinkUrls: string[] = []
+  const pushOglink = (url: string): string => {
+    naverOglinkUrls.push(url)
+    return oglinkCard(url)
+  }
 
   const parts: string[] = [
     editedBy(article.editor),
-    divider(5),
+    pushDivider("long"),
     cleanedIntro || `<p>(서문 없음)</p>`,
-    divider(1),
+    pushDivider("short"),
     ctaReadFull(),
     blank(),
-    oglinkCard(article.wpLink),
+    pushOglink(article.wpLink),
     blank(),
     blank(),
-    divider(5),
+    pushDivider("long"),
     ctaMoreArticles(),
     blank(),
-    oglinkCard(ANTIEGG_HOME),
-    divider(1),
+    pushOglink(ANTIEGG_HOME),
+    pushDivider("short"),
     ctaAboutAntiegg(),
     blank(),
-    oglinkCard(ANTIEGG_ABOUT),
+    pushOglink(ANTIEGG_ABOUT),
   ]
 
   const html = parts.join("\n")
@@ -109,6 +145,8 @@ export const formatForNaver = (article: WeekArticle): FormattedArticle => {
       featureImageUrl: article.featureImageUrl,
       wpLink: article.wpLink,
       naverTags: buildNaverTags(article),
+      naverDividerLayouts,
+      naverOglinkUrls,
       notes,
     },
     html,

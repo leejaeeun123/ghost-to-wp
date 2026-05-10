@@ -2,12 +2,15 @@ import { publishToNaver } from "../../src/naver-publisher.js";
 import { mapToNaverCategory } from "../../src/blog-format/naver-category-mapper.js";
 import { mapToNaverTopic } from "../../src/blog-format/naver-topic-mapper.js";
 
-// SE3-compatible HTML sample exercising paragraph + bold + divider + center align.
-// matches the markup naver-formatter.ts produces for actual articles.
+// SE3-compatible HTML sample exercising 5종 정렬 (좌·중·우 + bold + divider).
+// upconvert API는 class만으론 align을 인식 못함 (align-diagnose 검증).
+// production naver-formatter.ts와 동일하게 class + inline style 둘 다 부여.
 const SAMPLE_HTML = `
-<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-justify">이 글은 ghost-to-wp 자동화 PoC가 작성한 <b>비공개 테스트</b> 글입니다. 발행 직후 즉시 삭제해 주세요.</p></div></div></div></div>
+<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-right" style="text-align:right">Edited by <b><font color="#f7343c">재은</font></b></p></div></div></div></div>
+<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-left" style="text-align:left">이 글은 ghost-to-wp 자동화 PoC가 작성한 <b>비공개 테스트</b> 글입니다. 발행 직후 즉시 삭제해 주세요.</p></div></div></div></div>
 <div class="se-component se-divider se-l-default"><div class="se-component-content"><div class="se-section se-section-divider"><div class="se-module"><hr class="se-hr"></div></div></div></div>
-<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-center">SE3 호환 HTML paste 검증용 가운데 정렬 단락입니다.</p></div></div></div></div>
+<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-center" style="text-align:center"><b>가운데 정렬 검증 단락 (Bold)</b></p></div></div></div></div>
+<div class="se-component se-text se-l-default"><div class="se-component-content"><div class="se-section se-section-text se-l-default"><div class="se-module se-module-text"><p class="se-text-paragraph se-text-paragraph-align-right" style="text-align:right">우측 마무리 단락 — 정렬 검증용</p></div></div></div></div>
 `.trim();
 
 const wpCategories = ["매거진", "큐레이션"];
