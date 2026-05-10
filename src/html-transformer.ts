@@ -619,23 +619,37 @@ class GhostHtmlParser {
     const nonEmpty = elements.filter(
       (el) => !(el.type === "paragraph" && !el.html.replace(/<[^>]+>/g, "").trim())
     )
-    return this.convertBoldAfterH2ToH3(this.normalizeHeadings(nonEmpty))
+    return this.promoteBoldOnlyParagraphsToH3(this.normalizeHeadings(nonEmpty))
   }
 
   /**
-   * H2 직후 bold 문단(p+strong) → H3로 변환
-   * 예: "몸으로 느끼는 자연"(H2) + "<strong>에르네스토 네토</strong>"(p) → H3
+   * 단독 bold 문단(<p>이 단 하나의 <strong>로만 이루어진 경우)을 H3로 자동 승격
+   *
+   * 의도된 부제목 패턴 흡수: Ghost 에디터가 H3 대신 bold만 쓴 경우 WP에서는 H3로 변환.
+   * 본문 강조용 bold(부분 강조 또는 마침표로 끝나는 완성 문장)는 제외.
+   *
+   * 조건 (모두 충족):
+   *   1. <p> 내용 전체가 단 하나의 <strong>...</strong> (앞뒤 텍스트 없음)
+   *   2. 텍스트가 마침표/물음표/느낌표/말줄임표로 끝나지 않음
+   *   3. 60자 이내 (헤딩 길이 휴리스틱)
    */
-  private convertBoldAfterH2ToH3(elements: ParsedElement[]): ParsedElement[] {
-    for (let i = 0; i < elements.length - 1; i++) {
+  private promoteBoldOnlyParagraphsToH3(elements: ParsedElement[]): ParsedElement[] {
+    const sentenceEnding = /[.!?…。．？！]\s*$/
+    const MAX_HEADING_LEN = 60
+
+    for (let i = 0; i < elements.length; i++) {
       const el = elements[i]
-      const next = elements[i + 1]
-      if (el.type === "heading" && el.level <= 2 && next.type === "paragraph") {
-        const strongMatch = next.html.match(/^<strong>([\s\S]*?)<\/strong>$/)
-        if (strongMatch) {
-          elements[i + 1] = { type: "heading", level: 3, text: strongMatch[1] }
-        }
-      }
+      if (el.type !== "paragraph") continue
+
+      const strongMatch = el.html.match(/^<strong>([\s\S]*?)<\/strong>$/)
+      if (!strongMatch) continue
+
+      const text = strongMatch[1].replace(/<[^>]+>/g, "").trim()
+      if (!text) continue
+      if (text.length > MAX_HEADING_LEN) continue
+      if (sentenceEnding.test(text)) continue
+
+      elements[i] = { type: "heading", level: 3, text }
     }
     return elements
   }
