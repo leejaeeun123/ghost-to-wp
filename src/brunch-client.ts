@@ -65,16 +65,17 @@ export interface BrunchNewReservedPayload {
   publishRequestTime: number
 }
 
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+// 브런치가 user-agent Chrome 버전 게이트를 운영 중. 캡처된 cURL의 UA를 우선 사용하고,
+// 환경변수/파일 모두 없을 때만 fallback. 기본값은 정기적으로 최신 stable Chrome으로 갱신할 것.
+const FALLBACK_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
 
 const baseHeaders = (session: BrunchSession): Record<string, string> => ({
   accept: "application/json, text/javascript, */*; q=0.01",
   "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
   origin: ORIGIN,
   referer: REFERER,
-  "user-agent": USER_AGENT,
-  "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+  "user-agent": session.userAgent || FALLBACK_USER_AGENT,
   "sec-ch-ua-mobile": "?0",
   "sec-ch-ua-platform": '"Windows"',
   "sec-fetch-dest": "empty",

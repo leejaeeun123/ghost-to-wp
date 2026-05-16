@@ -4,6 +4,8 @@ import { dirname, resolve } from "node:path"
 export interface BrunchSession {
   cookie: string
   csrfToken: string
+  /** 캡처 시점 브라우저 UA — 브런치가 Chrome 버전 게이트(v148+)를 도입해 필수 */
+  userAgent?: string
   /** 저장 시점 ISO — 만료 추적용 */
   savedAt: string
 }
@@ -55,6 +57,7 @@ export const parseCurl = (curl: string): BrunchSession => {
 
   const cookie = headers.get("cookie")
   const csrf = headers.get("x-csrf-token")
+  const userAgent = headers.get("user-agent")
 
   if (!cookie) {
     const found = [...headers.keys()].join(", ") || "(없음)"
@@ -74,6 +77,7 @@ export const parseCurl = (curl: string): BrunchSession => {
   return {
     cookie,
     csrfToken: csrf,
+    userAgent: userAgent || undefined,
     savedAt: new Date().toISOString(),
   }
 }
@@ -88,7 +92,12 @@ export const loadSession = (): BrunchSession | null => {
   const envCookie = process.env.BRUNCH_COOKIE
   const envCsrf = process.env.BRUNCH_CSRF_TOKEN
   if (envCookie && envCsrf) {
-    return { cookie: envCookie, csrfToken: envCsrf, savedAt: "env" }
+    return {
+      cookie: envCookie,
+      csrfToken: envCsrf,
+      userAgent: process.env.BRUNCH_USER_AGENT || undefined,
+      savedAt: "env",
+    }
   }
 
   const path = getSessionPath()
